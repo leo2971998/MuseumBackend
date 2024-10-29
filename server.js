@@ -12,11 +12,11 @@ const port = process.env.PORT || 5000;
 
 // CORS settings - replace with your actual frontend URL once deployed
 app.use(cors({
-    origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000' // Update with your Azure Static Web App URL
+    origin: 'https://black-desert-0587dbd10.5.azurestaticapps.net' // Your frontend URL
 }));
 
 app.use(express.json());
-app.use(express.static('public')); // Serve static files from 'public' directory
+app.use(express.static('public')); // Allows access to the public folder for images
 
 // ----- DATABASE CONNECTION ----------------------------------------------------------------------
 const db = mysql.createPool({
@@ -29,7 +29,6 @@ const db = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0
 });
-
 db.getConnection()
     .then(() => console.log('Connected to the MySQL database'))
     .catch((err) => console.error('Error connecting to the database:', err));
@@ -45,45 +44,60 @@ const storage = multer.diskStorage({
         cb(null, safeFileName);
     }
 });
-
-const upload = multer({storage: multer.memoryStorage()});
+const upload = multer({ storage: multer.memoryStorage() });
 // ------------------------------------------------------------------------------------------------
 
-// ----- API ENDPOINTS ----------------------------------------------------------------------------
-// Artwork, Department, and Artist endpoints
+// ----- ROOT ROUTE -------------------------------------------------------------------------------
+// Handle the root URL to avoid "Cannot GET /" error
+app.get('/', (req, res) => {
+    res.send("Welcome to the Museum API Backend!");
+});
+// ------------------------------------------------------------------------------------------------
+
+// ----- API CALLS --------------------------------------------------------------------------------
+
+// ----- (MELANIE) --------------------------------------------------------------------------------
+
+// Query artwork table
 app.get('/artwork', async (req, res) => {
     try {
         const [result] = await db.query('SELECT * FROM artwork');
         res.json(result);
     } catch (error) {
-        res.status(500).json({message: "Error fetching artwork table", error});
+        res.status(500).json({ message: "Error fetching artwork table", error });
     }
 });
 
+// Query departments table
 app.get('/department', async (req, res) => {
     try {
         const [result] = await db.query('SELECT * FROM department');
         res.json(result);
     } catch (error) {
-        res.status(500).json({message: "Error fetching department table", error});
+        res.status(500).json({ message: "Error fetching department table", error });
     }
 });
 
+// Query artist table
 app.get('/artist', async (req, res) => {
     try {
         const [result] = await db.query('SELECT * FROM artist');
         res.json(result);
     } catch (error) {
-        res.status(500).json({message: "Error fetching artist table", error});
+        res.status(500).json({ message: "Error fetching artist table", error });
     }
 });
 
-// ----- USER AUTHENTICATION ----------------------------------------------------------------------
+// ----- (MELANIE DONE) ---------------------------------------------------------------------------
+
+// ----- (LEO) ------------------------------------------------------------------------------------
+
+// User registration
 app.post('/register', async (req, res) => {
-    const {firstName, lastName, dateOfBirth, username, password, email, roleId = 3} = req.body;
+    const { firstName, lastName, dateOfBirth, username, password, email, roleId } = req.body;
 
     if (!firstName || !lastName || !dateOfBirth || !username || !password || !email) {
-        return res.status(400).json({message: 'All fields are required.'});
+        return res.status(400).json({ message: 'All fields are required.' });
     }
 
     try {
@@ -92,31 +106,32 @@ app.post('/register', async (req, res) => {
             INSERT INTO users (first_name, last_name, date_of_birth, username, password, email, role_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
-        const values = [firstName, lastName, dateOfBirth, username, hashedPassword, email, roleId];
+        const values = [firstName, lastName, dateOfBirth, username, hashedPassword, email, roleId || 3];
 
         await db.query(sql, values);
-        res.status(201).json({message: 'User registered successfully.'});
+        res.status(201).json({ message: 'User registered successfully.' });
     } catch (error) {
-        res.status(500).json({message: 'Server error during registration.', error});
+        res.status(500).json({ message: 'Server error during registration.', error });
     }
 });
 
+// User login
 app.post('/login', async (req, res) => {
-    const {username, password} = req.body;
+    const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({message: 'Username and password are required.'});
+        return res.status(400).json({ message: 'Username and password are required.' });
     }
 
     try {
         const [user] = await db.query(`
             SELECT users.*, roles.role_name
             FROM users
-                     JOIN roles ON users.role_id = roles.id
+            JOIN roles ON users.role_id = roles.id
             WHERE users.username = ?`, [username]);
 
         if (user.length === 0 || !(await bcrypt.compare(password, user[0].password))) {
-            return res.status(400).json({message: 'Invalid username or password.'});
+            return res.status(400).json({ message: 'Invalid username or password.' });
         }
 
         res.status(200).json({
@@ -125,13 +140,13 @@ app.post('/login', async (req, res) => {
             role: user[0].role_name,
         });
     } catch (error) {
-        res.status(500).json({message: 'Server error during login.', error});
+        res.status(500).json({ message: 'Server error during login.', error });
     }
 });
 
 // ----- GIFT SHOP ITEMS ENDPOINTS ----------------------------------------------------------------
 app.post('/giftshopitems', upload.single('image'), async (req, res) => {
-    const {name_, category, price, quantity} = req.body;
+    const { name_, category, price, quantity } = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
 
     try {
@@ -142,9 +157,9 @@ app.post('/giftshopitems', upload.single('image'), async (req, res) => {
         const values = [name_, category, parseFloat(price), quantity, imageBlob];
 
         await db.query(sql, values);
-        res.status(201).json({message: 'Item created successfully'});
+        res.status(201).json({ message: 'Item created successfully' });
     } catch (error) {
-        res.status(500).json({message: 'Failed to create gift shop item', error});
+        res.status(500).json({ message: 'Failed to create gift shop item', error });
     }
 });
 
@@ -153,63 +168,70 @@ app.get('/giftshopitems', async (req, res) => {
         const [rows] = await db.query('SELECT item_id, name_, category, price, quantity FROM giftshopitem');
         res.json(rows);
     } catch (error) {
-        res.status(500).json({message: 'Server error fetching gift shop items.', error});
+        res.status(500).json({ message: 'Server error fetching gift shop items.', error });
     }
 });
 
 app.get('/giftshopitems/:id/image', async (req, res) => {
-    const {id} = req.params;
+    const { id } = req.params;
 
     try {
         const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
         if (rows.length === 0 || !rows[0].image) {
-            return res.status(404).json({message: 'Image not found.'});
+            return res.status(404).json({ message: 'Image not found.' });
         }
 
         res.set('Content-Type', 'image/jpeg'); // Adjust content type as needed
         res.send(rows[0].image);
     } catch (error) {
-        res.status(500).json({message: 'Server error fetching image.', error});
+        res.status(500).json({ message: 'Server error fetching image.', error });
     }
 });
 
 app.put('/giftshopitems/:id', upload.single('image'), async (req, res) => {
-    const {id} = req.params;
-    const {name_, category, price, quantity} = req.body;
+    const { id } = req.params;
+    const { name_, category, price, quantity } = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
 
     try {
         const sql = `
             UPDATE giftshopitem
-            SET name_    = ?,
-                category = ?,
-                price    = ?,
-                quantity = ?,
-                image    = ?
+            SET name_ = ?, category = ?, price = ?, quantity = ?, image = ?
             WHERE item_id = ?
         `;
         const values = [name_, category, parseFloat(price), quantity, imageBlob, id];
 
         await db.query(sql, values);
-        res.status(200).json({message: 'Item updated successfully'});
+        res.status(200).json({ message: 'Item updated successfully' });
     } catch (error) {
-        res.status(500).json({message: 'Failed to update gift shop item', error});
+        res.status(500).json({ message: 'Failed to update gift shop item', error });
     }
 });
 
 app.delete('/giftshopitems/:id', async (req, res) => {
-    const {id} = req.params;
+    const { id } = req.params;
 
     try {
         const sql = 'DELETE FROM giftshopitem WHERE item_id = ?';
         await db.query(sql, [id]);
-        res.status(200).json({message: 'Gift shop item deleted successfully.'});
+        res.status(200).json({ message: 'Gift shop item deleted successfully.' });
     } catch (error) {
-        res.status(500).json({message: 'Server error deleting gift shop item.', error});
+        res.status(500).json({ message: 'Server error deleting gift shop item.', error });
     }
 });
-// ------------------------------------------------------------------------------------------------
+// ----- (LEO DONE) --------------------------------------------------------------------------------
 
+// ----- (MUNA) ------------------------------------------------------------------------------------
+
+// ----- (MUNA DONE) ------------------------------------------------------------------------------
+
+// ----- (TYLER) ----------------------------------------------------------------------------------
+
+// ----- (TYLER DONE) -----------------------------------------------------------------------------
+
+// ----- (DENNIS) ---------------------------------------------------------------------------------
+
+// ----- (DENNIS DONE) ----------------------------------------------------------------------------
 // Start the server
 app.listen(port, () => {
     console.log(`Server Running on http://localhost:${port}`);
