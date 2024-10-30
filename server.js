@@ -8,12 +8,10 @@ require('dotenv').config();
 const app = express();
 
 // Set port to 8080 for Azure compatibility
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 8080;
 
 // Allowed origins for CORS
 const allowedOrigins = [
-    'http://localhost:3000', // Local development frontend
-    'http://localhost:3002', // Updated localhost port if needed
     'https://black-desert-0587dbd10.5.azurestaticapps.net' // Azure Static Web App URL
 ];
 
@@ -83,6 +81,7 @@ const asyncHandler = fn => (req, res, next) => {
 
 // Query artwork table
 app.get('/artwork', asyncHandler(async (req, res) => {
+    console.log('GET /artwork endpoint hit'); // Debug log
     const sql = 'SELECT * FROM artwork';
     const [result] = await db.query(sql);
     res.json(result);
@@ -90,6 +89,7 @@ app.get('/artwork', asyncHandler(async (req, res) => {
 
 // Query departments table
 app.get('/department', asyncHandler(async (req, res) => {
+    console.log('GET /department endpoint hit'); // Debug log
     const sql = 'SELECT * FROM department';
     const [result] = await db.query(sql);
     res.json(result);
@@ -97,6 +97,7 @@ app.get('/department', asyncHandler(async (req, res) => {
 
 // Query artist table
 app.get('/artist', asyncHandler(async (req, res) => {
+    console.log('GET /artist endpoint hit'); // Debug log
     const sql = 'SELECT * FROM artist';
     const [result] = await db.query(sql);
     res.json(result);
@@ -104,6 +105,7 @@ app.get('/artist', asyncHandler(async (req, res) => {
 
 // User registration
 app.post('/register', asyncHandler(async (req, res) => {
+    console.log('POST /register endpoint hit'); // Debug log
     const { firstName, lastName, dateOfBirth, username, password, email, roleId } = req.body;
 
     // Validation
@@ -125,6 +127,7 @@ app.post('/register', asyncHandler(async (req, res) => {
 
 // User login
 app.post('/login', asyncHandler(async (req, res) => {
+    console.log('POST /login endpoint hit'); // Debug log
     const { username, password } = req.body;
 
     // Validation
@@ -183,6 +186,7 @@ function authenticateUser(req, res, next) {
 
 // Create gift shop item
 app.post('/giftshopitems', upload.single('image'), asyncHandler(async (req, res) => {
+    console.log('POST /giftshopitems endpoint hit'); // Debug log
     const { name_, category, price, quantity } = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
     const sql = `
@@ -196,18 +200,21 @@ app.post('/giftshopitems', upload.single('image'), asyncHandler(async (req, res)
 
 // Get all gift shop items
 app.get('/giftshopitems', asyncHandler(async (req, res) => {
+    console.log('GET /giftshopitems endpoint hit'); // Debug log
     const [rows] = await db.query('SELECT item_id, name_, category, price, quantity FROM giftshopitem WHERE is_deleted = 0');
     res.json(rows);
 }));
 
 // Get all gift shop items (Admin only)
 app.get('/giftshopitemsall', authenticateAdmin, asyncHandler(async (req, res) => {
+    console.log('GET /giftshopitemsall endpoint hit'); // Debug log
     const [rows] = await db.query('SELECT item_id, name_, category, price, quantity, is_deleted FROM giftshopitem');
     res.json(rows);
 }));
 
 // Get image for a specific gift shop item
 app.get('/giftshopitems/:id/image', asyncHandler(async (req, res) => {
+    console.log(`GET /giftshopitems/${req.params.id}/image endpoint hit`); // Debug log
     const { id } = req.params;
     const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
     if (rows.length === 0 || !rows[0].image) {
@@ -220,6 +227,7 @@ app.get('/giftshopitems/:id/image', asyncHandler(async (req, res) => {
 
 // Update gift shop item
 app.put('/giftshopitems/:id', upload.single('image'), asyncHandler(async (req, res) => {
+    console.log(`PUT /giftshopitems/${req.params.id} endpoint hit`); // Debug log
     const { id } = req.params;
     const { name_, category, price, quantity } = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
@@ -245,6 +253,7 @@ app.put('/giftshopitems/:id', upload.single('image'), asyncHandler(async (req, r
 
 // Soft delete a gift shop item (Admin only)
 app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, asyncHandler(async (req, res) => {
+    console.log(`PUT /giftshopitems/${req.params.id}/soft-delete endpoint hit`); // Debug log
     const { id } = req.params;
 
     const sql = 'UPDATE giftshopitem SET is_deleted = 1 WHERE item_id = ?';
@@ -254,6 +263,7 @@ app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, asyncHandler(async 
 
 // Restore a gift shop item (Admin only)
 app.put('/giftshopitems/:id/restore', authenticateAdmin, asyncHandler(async (req, res) => {
+    console.log(`PUT /giftshopitems/${req.params.id}/restore endpoint hit`); // Debug log
     const { id } = req.params;
 
     const sql = 'UPDATE giftshopitem SET is_deleted = 0 WHERE item_id = ?';
@@ -263,6 +273,7 @@ app.put('/giftshopitems/:id/restore', authenticateAdmin, asyncHandler(async (req
 
 // Delete a gift shop item permanently (Admin only)
 app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, asyncHandler(async (req, res) => {
+    console.log(`DELETE /giftshopitems/${req.params.id}/hard-delete endpoint hit`); // Debug log
     const { id } = req.params;
 
     const sql = 'DELETE FROM giftshopitem WHERE item_id = ?';
@@ -277,6 +288,7 @@ app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, asyncHandler(asy
 
 // Get user profile
 app.get('/users/:id', authenticateUser, asyncHandler(async (req, res) => {
+    console.log(`GET /users/${req.params.id} endpoint hit`); // Debug log
     const { id } = req.params;
 
     // Ensure the user can only access their own profile
@@ -299,6 +311,7 @@ app.get('/users/:id', authenticateUser, asyncHandler(async (req, res) => {
 
 // Update user profile
 app.put('/users/:id', authenticateUser, asyncHandler(async (req, res) => {
+    console.log(`PUT /users/${req.params.id} endpoint hit`); // Debug log
     const { id } = req.params;
     const { firstName, lastName, dateOfBirth, email } = req.body;
 
