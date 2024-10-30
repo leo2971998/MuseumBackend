@@ -284,7 +284,7 @@ app.put('/giftshopitems/:id', upload.single('image'), async (req, res) => {
 });
 
 // Delete a gift shop item (Admin only)
-app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res) => {
+app.delete('/giftshopitems/:id/hard-delete', async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -303,7 +303,7 @@ app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res)
 });
 
 // Soft delete a gift shop item (Admin only)
-app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/soft-delete', async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -317,7 +317,7 @@ app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) =>
 });
 
 // Restore a gift shop item (Admin only)
-app.put('/giftshopitems/:id/restore', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/restore', async (req, res) => {
   const { id } = req.params;
 
   try {
