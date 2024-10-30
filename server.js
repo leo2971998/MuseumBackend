@@ -221,7 +221,7 @@ app.get('/giftshopitems', async (req, res) => {
 });
 
 // Get all gift shop items (Admin only)
-app.get('/giftshopitemsall', authenticateAdmin, async (req, res) => {
+app.get('/giftshopitemsall', async (req, res) => {
   try {
     const [rows] = await db.query(
       'SELECT item_id, name_, category, price, quantity, is_deleted FROM giftshopitem'
