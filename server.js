@@ -446,4 +446,4 @@ app.get('/api/events/:id/members', async (req, res) => {
 // ----- (DENNIS DONE) ------------------------------------------------------------------------------
 
 // Export the app for Vercel's serverless environment
-module.exports = app;
+export default app;
