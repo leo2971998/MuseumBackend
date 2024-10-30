@@ -58,6 +58,9 @@ const storage = multer.diskStorage({
 
 // ----- (MELANIE) --------------------------------------------------------------------------------
 
+app.get('/', (req, res) => {
+    res.send('Welcome to the Museum API Backend!');
+});
 // Query artwork table
 app.get('/artwork', (req, res) => {
     const sql = 'SELECT * FROM artwork';
