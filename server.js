@@ -8,7 +8,7 @@ require('dotenv').config();
 const app = express();
 
 // Set port to 8080 for Azure compatibility
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 5000;
 
 // Allowed origins for CORS
 const allowedOrigins = [
@@ -84,7 +84,7 @@ const asyncHandler = fn => (req, res, next) => {
 // Query artwork table
 app.get('/artwork', asyncHandler(async (req, res) => {
     const sql = 'SELECT * FROM artwork';
-    const [result] = await db.query(sql); // Use await and no callback
+    const [result] = await db.query(sql);
     res.json(result);
 }));
 
@@ -195,164 +195,132 @@ app.post('/giftshopitems', upload.single('image'), asyncHandler(async (req, res)
 }));
 
 // Get all gift shop items
+app.get('/giftshopitems', asyncHandler(async (req, res) => {
+    const [rows] = await db.query('SELECT item_id, name_, category, price, quantity FROM giftshopitem WHERE is_deleted = 0');
+    res.json(rows);
+}));
+
 // Get all gift shop items (Admin only)
-app.get('/giftshopitemsall', async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT item_id, name_, category, price, quantity, is_deleted FROM giftshopitem');
-        res.json(rows);
-    } catch (error) {
-        console.error('Error fetching gift shop items:', error);
-        res.status(500).json({message: 'Server error fetching gift shop items.'});
-    }
-});
+app.get('/giftshopitemsall', authenticateAdmin, asyncHandler(async (req, res) => {
+    const [rows] = await db.query('SELECT item_id, name_, category, price, quantity, is_deleted FROM giftshopitem');
+    res.json(rows);
+}));
+
 // Get image for a specific gift shop item
-app.get('/giftshopitems/:id/image', async (req, res) => {
-    const {id} = req.params;
-
-    try {
-        const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
-        if (rows.length === 0 || !rows[0].image) {
-            return res.status(404).json({message: 'Image not found.'});
-        }
-
-        res.set('Content-Type', 'image/jpeg'); // Adjust content type as needed
-        res.send(rows[0].image);
-    } catch (error) {
-        console.error('Error fetching image:', error);
-        res.status(500).json({message: 'Server error fetching image.'});
+app.get('/giftshopitems/:id/image', asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
+    if (rows.length === 0 || !rows[0].image) {
+        return res.status(404).json({ message: 'Image not found.' });
     }
-});
 
-// Update item API in server.js
-app.put('/giftshopitems/:id', upload.single('image'), async (req, res) => {
-    const {id} = req.params;
-    const {name_, category, price, quantity} = req.body;
+    res.set('Content-Type', 'image/jpeg'); // Adjust content type as needed
+    res.send(rows[0].image);
+}));
+
+// Update gift shop item
+app.put('/giftshopitems/:id', upload.single('image'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name_, category, price, quantity } = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
 
-    try {
-        const sql = `
-            UPDATE giftshopitem
-            SET name_    = ?,
-                category = ?,
-                price    = ?,
-                quantity = ?,
-                image    = ?
-            WHERE item_id = ?
-              AND is_deleted = 0
-        `;
-        const values = [name_, category, parseFloat(price), quantity, imageBlob, id];
+    const sql = `
+        UPDATE giftshopitem
+        SET name_ = ?,
+            category = ?,
+            price = ?,
+            quantity = ?,
+            image = ?
+        WHERE item_id = ?
+          AND is_deleted = 0
+    `;
+    const values = [name_, category, parseFloat(price), quantity, imageBlob, id];
 
-        const [result] = await db.query(sql, values);
-        if (result.affectedRows === 0) {
-            return res.status(404).json({message: 'Item not found or already deleted.'});
-        }
-        res.status(200).json({message: 'Item updated successfully'});
-    } catch (error) {
-        console.error('Error updating gift shop item:', error);
-        res.status(500).json({error: 'Failed to update gift shop item'});
+    const [result] = await db.query(sql, values);
+    if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Item not found or already deleted.' });
     }
-});
+    res.status(200).json({ message: 'Item updated successfully' });
+}));
 
-// Delete a gift shop item (Admin only)
-app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res) => {
+// Soft delete a gift shop item (Admin only)
+app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    try {
-        const sql = 'DELETE FROM giftshopitem WHERE item_id = ?';
-        const [result] = await db.query(sql, [id]);
+    const sql = 'UPDATE giftshopitem SET is_deleted = 1 WHERE item_id = ?';
+    await db.query(sql, [id]);
+    res.status(200).json({ message: 'Gift shop item marked as deleted.' });
+}));
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Item not found or already deleted.' });
-        }
-
-        res.status(200).json({ message: 'Gift shop item permanently deleted.' });
-    } catch (error) {
-        console.error('Error hard deleting gift shop item:', error);
-        res.status(500).json({ message: 'Server error during hard delete.' });
-    }
-});
-// Soft delete a gift shop item (Admin only)
-app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) => {
-    const {id} = req.params;
-
-    try {
-        const sql = 'UPDATE giftshopitem SET is_deleted = 1 WHERE item_id = ?';
-        await db.query(sql, [id]);
-        res.status(200).json({message: 'Gift shop item marked as deleted.'});
-    } catch (error) {
-        console.error('Error soft deleting gift shop item:', error);
-        res.status(500).json({message: 'Server error soft deleting gift shop item.'});
-    }
-});
 // Restore a gift shop item (Admin only)
-app.put('/giftshopitems/:id/restore', authenticateAdmin, async (req, res) => {
-    const {id} = req.params;
+app.put('/giftshopitems/:id/restore', authenticateAdmin, asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
-    try {
-        const sql = 'UPDATE giftshopitem SET is_deleted = 0 WHERE item_id = ?';
-        await db.query(sql, [id]);
-        res.status(200).json({message: 'Gift shop item restored successfully.'});
-    } catch (error) {
-        console.error('Error restoring gift shop item:', error);
-        res.status(500).json({message: 'Server error restoring gift shop item.'});
+    const sql = 'UPDATE giftshopitem SET is_deleted = 0 WHERE item_id = ?';
+    await db.query(sql, [id]);
+    res.status(200).json({ message: 'Gift shop item restored successfully.' });
+}));
+
+// Delete a gift shop item permanently (Admin only)
+app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const sql = 'DELETE FROM giftshopitem WHERE item_id = ?';
+    const [result] = await db.query(sql, [id]);
+
+    if (result.affectedRows === 0) {
+        return res.status(404).json({ message: 'Item not found or already deleted.' });
     }
-});
+
+    res.status(200).json({ message: 'Gift shop item permanently deleted.' });
+}));
 
 // Get user profile
-app.get('/users/:id', authenticateUser, async (req, res) => {
-    const {id} = req.params;
+app.get('/users/:id', authenticateUser, asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
     // Ensure the user can only access their own profile
     if (req.userId !== id && req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied.'});
+        return res.status(403).json({ message: 'Access denied.' });
     }
 
-    try {
-        const [rows] = await db.query(`
-            SELECT first_name AS firstName, last_name AS lastName, date_of_birth AS dateOfBirth, username, email
-            FROM users
-            WHERE user_id = ?
-        `, [id]);
+    const [rows] = await db.query(`
+        SELECT first_name AS firstName, last_name AS lastName, date_of_birth AS dateOfBirth, username, email
+        FROM users
+        WHERE user_id = ?
+    `, [id]);
 
-        if (rows.length === 0) {
-            return res.status(404).json({message: 'User not found.'});
-        }
-
-        res.json(rows[0]);
-    } catch (error) {
-        console.error('Error fetching user data:', error);
-        res.status(500).json({message: 'Server error fetching user data.'});
+    if (rows.length === 0) {
+        return res.status(404).json({ message: 'User not found.' });
     }
-});
+
+    res.json(rows[0]);
+}));
 
 // Update user profile
-app.put('/users/:id', authenticateUser, async (req, res) => {
-    const {id} = req.params;
-    const {firstName, lastName, dateOfBirth, email} = req.body;
+app.put('/users/:id', authenticateUser, asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, dateOfBirth, email } = req.body;
 
     // Ensure the user can only update their own profile
     if (req.userId !== id && req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied.'});
+        return res.status(403).json({ message: 'Access denied.' });
     }
 
-    try {
-        const sql = `
-            UPDATE users
-            SET first_name    = ?,
-                last_name     = ?,
-                date_of_birth = ?,
-                email         = ?
-            WHERE user_id = ?
-        `;
-        const values = [firstName, lastName, dateOfBirth, email, id];
+    const sql = `
+        UPDATE users
+        SET first_name = ?,
+            last_name = ?,
+            date_of_birth = ?,
+            email = ?
+        WHERE user_id = ?
+    `;
+    const values = [firstName, lastName, dateOfBirth, email, id];
 
-        await db.query(sql, values);
-        res.status(200).json({message: 'Profile updated successfully.'});
-    } catch (error) {
-        console.error('Error updating user profile:', error);
-        res.status(500).json({message: 'Server error updating user profile.'});
-    }
-});
+    await db.query(sql, values);
+    res.status(200).json({ message: 'Profile updated successfully.' });
+}));
+
 // ----- ERROR HANDLING MIDDLEWARE -----------------------------------------------------------------
 // Handle 404 errors
 app.use((req, res, next) => {
