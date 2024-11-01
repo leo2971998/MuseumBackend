@@ -22,7 +22,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'role'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'role', 'user-id' ],
 }));
 
 
