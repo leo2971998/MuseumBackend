@@ -5,7 +5,23 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 const app = express();
-app.use(cors());
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3002',
+    'https://black-desert-0587dbd10.5.azurestaticapps.net',
+];
+
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');  // Allow credentials
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, role');
+    next();
+});
+
 app.use(express.json());
 
 // ----- DATABASE CONNECTION ----------------------------------------------------------------------
