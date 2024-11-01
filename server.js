@@ -242,7 +242,9 @@ app.get('/giftshopitems/:id/image', async (req, res) => {
             return res.status(404).json({ message: 'Image not found.' });
         }
 
-        res.set('Content-Type', 'image/jpeg'); // Adjust content type as needed
+        // Prevent caching
+        res.set('Cache-Control', 'no-store');
+        res.set('Content-Type', 'image/jpeg');
         res.send(rows[0].image);
     } catch (error) {
         console.error('Error fetching image:', error);
