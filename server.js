@@ -189,15 +189,14 @@ app.post('/login', async (req, res) => {
 app.post('/giftshopitems', upload.single('image'), async (req, res) => {
     const {name_, category, price, quantity} = req.body;
     const imageBuffer = req.file ? req.file.buffer : null;
-
-    // Handle image upload to external storage here (e.g., AWS S3, Cloudinary)
+    const imageType = req.file ? req.file.mimetype : null;
 
     try {
         const sql = `
-            INSERT INTO giftshopitem (name_, category, price, quantity, image)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO giftshopitem (name_, category, price, quantity, image, image_type)
+            VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const values = [name_, category, parseFloat(price), quantity, imageBuffer];
+        const values = [name_, category, parseFloat(price), quantity, imageBuffer, imageType];
 
         await db.query(sql, values);
         res.status(201).json({message: 'Item created successfully'});
@@ -207,16 +206,35 @@ app.post('/giftshopitems', upload.single('image'), async (req, res) => {
     }
 });
 
-// Get all gift shop items
-app.get('/giftshopitems', async (req, res) => {
+// Update item API
+app.put('/giftshopitems/:id', upload.single('image'), async (req, res) => {
+    const {id} = req.params;
+    const {name_, category, price, quantity} = req.body;
+    const imageBuffer = req.file ? req.file.buffer : null;
+    const imageType = req.file ? req.file.mimetype : null;
+
     try {
-        const [rows] = await db.query(
-            'SELECT item_id, name_, category, price, quantity, is_deleted FROM giftshopitem WHERE is_deleted = 0'
-        );
-        res.json(rows);
+        const sql = `
+            UPDATE giftshopitem
+            SET name_      = ?,
+                category   = ?,
+                price      = ?,
+                quantity   = ?,
+                image      = ?,
+                image_type = ?
+            WHERE item_id = ?
+              AND is_deleted = 0
+        `;
+        const values = [name_, category, parseFloat(price), quantity, imageBuffer, imageType, id];
+
+        const [result] = await db.query(sql, values);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({message: 'Item not found or already deleted.'});
+        }
+        res.status(200).json({message: 'Item updated successfully'});
     } catch (error) {
-        console.error('Error fetching gift shop items:', error);
-        res.status(500).json({message: 'Server error fetching gift shop items.'});
+        console.error('Error updating gift shop item:', error);
+        res.status(500).json({error: 'Failed to update gift shop item'});
     }
 });
 
@@ -233,18 +251,15 @@ app.get('/giftshopitemsall', async (req, res) => {
     }
 });
 
-// Get image for a specific gift shop item
 app.get('/giftshopitems/:id/image', async (req, res) => {
     const { id } = req.params;
     try {
-        const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
+        const [rows] = await db.query('SELECT image, image_type FROM giftshopitem WHERE item_id = ?', [id]);
         if (rows.length === 0 || !rows[0].image) {
             return res.status(404).json({ message: 'Image not found.' });
         }
-
-        // Prevent caching
         res.set('Cache-Control', 'no-store');
-        res.set('Content-Type', 'image/jpeg');
+        res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
         res.send(rows[0].image);
     } catch (error) {
         console.error('Error fetching image:', error);
