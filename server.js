@@ -227,11 +227,8 @@ app.get('/giftshopitemsall', async (req, res) => {
 });
 
 // Get image for a specific gift shop item
-app.get('/giftshopitems/:id/image', cors(corsOptions), async (req, res) => {
+app.get('/giftshopitems/:id/image', async (req, res) => {
   const { id } = req.params;
-  res.setHeader('Access-Control-Allow-Origin', 'https://black-desert-0587dbd10.5.azurestaticapps.net');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   try {
     const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
     if (rows.length === 0 || !rows[0].image) {
