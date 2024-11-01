@@ -237,6 +237,18 @@ app.put('/giftshopitems/:id', upload.single('image'), async (req, res) => {
         res.status(500).json({error: 'Failed to update gift shop item'});
     }
 });
+// Get all the gift shop items (Exclude the deleted ones)
+app.get('/giftshopitems', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT item_id, name_, category, price, quantity, is_deleted, image_type FROM giftshopitem WHERE is_deleted = 0'
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching gift shop items:', error);
+        res.status(500).json({ message: 'Server error fetching gift shop items.' });
+    }
+});
 
 // Get all gift shop items (Admin only)
 app.get('/giftshopitemsall', async (req, res) => {
