@@ -11,16 +11,20 @@ const allowedOrigins = [
     'https://black-desert-0587dbd10.5.azurestaticapps.net',
 ];
 
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');  // Allow credentials
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, role');
-    next();
-});
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true); // Allow requests with no origin (like mobile apps, curl)
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        } else {
+            return callback(new Error('CORS policy does not allow access from the specified Origin.'), false);
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'role'],
+}));
+
 
 app.use(express.json());
 
@@ -231,29 +235,18 @@ app.get('/giftshopitemsall', async (req, res) => {
 
 // Get image for a specific gift shop item
 app.get('/giftshopitems/:id/image', async (req, res) => {
-    const {id} = req.params;
+    const { id } = req.params;
     try {
         const [rows] = await db.query('SELECT image FROM giftshopitem WHERE item_id = ?', [id]);
         if (rows.length === 0 || !rows[0].image) {
-            return res.status(404).json({message: 'Image not found.'});
-        }
-
-        // Set the Access-Control-Allow-Origin header to the origin of the request
-        const origin = req.headers.origin;
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:3002',
-            'https://black-desert-0587dbd10.5.azurestaticapps.net',
-        ];
-        if (allowedOrigins.includes(origin)) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
+            return res.status(404).json({ message: 'Image not found.' });
         }
 
         res.set('Content-Type', 'image/jpeg'); // Adjust content type as needed
         res.send(rows[0].image);
     } catch (error) {
         console.error('Error fetching image:', error);
-        res.status(500).json({message: 'Server error fetching image.'});
+        res.status(500).json({ message: 'Server error fetching image.' });
     }
 });
 
