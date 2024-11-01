@@ -12,14 +12,11 @@ const allowedOrigins = [
   'http://localhost:3002',
   'https://black-desert-0587dbd10.5.azurestaticapps.net',
 ];
-const corsOptions = {
-  origin: 'https://black-desert-0587dbd10.5.azurestaticapps.net',
-  optionsSuccessStatus: 200,
-};
 app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
 app.use(express.json());
