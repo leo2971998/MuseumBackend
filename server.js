@@ -10,22 +10,15 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3002',
-  'https://black-desert-0587dbd10.5.azurestaticapps.net', // Replace with your Azure Static Web App URL
+  'https://black-desert-0587dbd10.5.azurestaticapps.net',
 ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true, // Enables credentials if you plan on using them
+    origin: allowedOrigins,
+    credentials: true,
   })
 );
-
 app.use(express.json());
 
 // ----- DATABASE CONNECTION ----------------------------------------------------------------------
