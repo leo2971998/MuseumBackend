@@ -12,7 +12,10 @@ const allowedOrigins = [
   'http://localhost:3002',
   'https://black-desert-0587dbd10.5.azurestaticapps.net',
 ];
-
+const corsOptions = {
+  origin: 'https://black-desert-0587dbd10.5.azurestaticapps.net',
+  optionsSuccessStatus: 200,
+};
 app.use(
   cors({
     origin: allowedOrigins,
@@ -227,7 +230,7 @@ app.get('/giftshopitemsall', async (req, res) => {
 });
 
 // Get image for a specific gift shop item
-app.get('/giftshopitems/:id/image', async (req, res) => {
+app.get('/giftshopitems/:id/image', cors(corsOptions), async (req, res) => {
   const { id } = req.params;
 
   try {
