@@ -5,13 +5,7 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 const app = express();
-app.use(
-  cors({
-    origin: '*',
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  })
-);
+app.use(cors());
 app.use(express.json());
 
 // ----- DATABASE CONNECTION ----------------------------------------------------------------------
