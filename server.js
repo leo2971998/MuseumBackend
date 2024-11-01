@@ -5,16 +5,9 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 const app = express();
-
-// CORS Configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3002',
-  'https://black-desert-0587dbd10.5.azurestaticapps.net',
-];
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: '*',
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
