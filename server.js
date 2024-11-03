@@ -719,7 +719,7 @@ async function generateGiftShopRevenueReport(
     }
 }
 // Endpoint to get all gift shop items
-app.get('/giftshopitems', async (req, res) => {
+app.get('/giftshopitemsreport', async (req, res) => {
     try {
         const [rows] = await db.query('SELECT item_id, name_ FROM giftshopitem WHERE is_deleted = 0');
         res.status(200).json(rows);
