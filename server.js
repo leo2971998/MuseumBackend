@@ -1051,6 +1051,7 @@ app.put('/users/:id/reset-password', async (req, res) => {
 });
 // ----- CHECKOUT ENDPOINT (Assuming other checkout logic is implemented)
 app.post('/checkout', async (req, res) => {
+    console.log('Received Headers:', req.headers);
     const {payment_method, items} = req.body;
     const user_id = req.userId; // Retrieved from the authenticateUser middleware
 
