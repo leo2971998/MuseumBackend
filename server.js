@@ -1114,7 +1114,34 @@ app.post('/checkout', async (req, res) => {
         connection.release();
     }
 });
+// Restore a soft-deleted user (Admin only)
+app.put('/users/:id/restore', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
 
+    try {
+        // Check if the user exists and is currently soft-deleted
+        const [rows] = await db.query('SELECT is_deleted FROM users WHERE user_id = ?', [id]);
+
+        if (rows.length === 0) {
+            console.error(`Restore User Error: User with ID ${id} not found.`);
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        if (rows[0].is_deleted === 0) {
+            console.error(`Restore User Error: User with ID ${id} is not deleted.`);
+            return res.status(400).json({ message: 'User is not deleted.' });
+        }
+
+        // Restore the user by setting is_deleted to 0
+        await db.query('UPDATE users SET is_deleted = 0 WHERE user_id = ?', [id]);
+
+        console.log(`User with ID ${id} restored successfully.`);
+        res.status(200).json({ message: 'User restored successfully.' });
+    } catch (error) {
+        console.error(`Error restoring user with ID ${id}:`, error);
+        res.status(500).json({ message: 'Server error restoring user.' });
+    }
+});
 // Updated /reports endpoint
 app.post('/reports', async (req, res) => {
     const {
