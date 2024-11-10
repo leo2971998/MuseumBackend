@@ -646,14 +646,14 @@ async function authenticateUser(req, res, next) {
                 req.userRole = role;
                 next();
             } else {
-                res.status(403).json({message: 'Access denied. User is deleted.'});
+                res.status(403).json({ message: 'Access denied. User is deleted or does not exist.' });
             }
         } catch (error) {
             console.error('Error in authenticateUser middleware:', error);
-            res.status(500).json({message: 'Server error during authentication.'});
+            res.status(500).json({ message: 'Server error during authentication.' });
         }
     } else {
-        res.status(401).json({message: 'Unauthorized access.'});
+        res.status(401).json({ message: 'Unauthorized access. User ID and role are required in headers.' });
     }
 }
 
@@ -1050,9 +1050,9 @@ app.put('/users/:id/reset-password', async (req, res) => {
     }
 });
 // ----- CHECKOUT ENDPOINT (Assuming other checkout logic is implemented)
-app.post('/checkout', async (req, res) => {
+app.post('/checkout', authenticateUser, async (req, res) => {
     console.log('Received Headers:', req.headers);
-    const {payment_method, items} = req.body;
+    const {userId, role, payment_method, items} = req.body;
     const user_id = req.userId; // Retrieved from the authenticateUser middleware
 
     // Input Validation
