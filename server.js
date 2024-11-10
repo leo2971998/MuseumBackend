@@ -890,27 +890,56 @@ app.get('/users/:id', async (req, res) => {
     }
 });
 // Update user (Admin only)
-app.put('/users/:id', async (req, res) => {
-    const {id} = req.params;
-    const {firstName, lastName, dateOfBirth, email, roleId} = req.body;
+app.put('/users/:id', authenticateUser, async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, dateOfBirth, email, roleId } = req.body;
+    const userRole = req.userRole; // Obtained from authenticateUser middleware
+
+    // Validate input
+    if (!firstName || !lastName || !dateOfBirth || !email) {
+        return res.status(400).json({ message: 'First name, last name, date of birth, and email are required.' });
+    }
+
+    // Initialize SQL and values
+    let sql = `
+        UPDATE users
+        SET first_name    = ?,
+            last_name     = ?,
+            date_of_birth = ?,
+            email         = ?
+    `;
+    let values = [firstName, lastName, dateOfBirth, email];
+
+    // If roleId is provided, verify that the requester is an admin
+    if (roleId !== undefined) {
+        if (userRole !== 'admin') {
+            return res.status(403).json({ message: 'Only admins can update user roles.' });
+        }
+
+        // Validate roleId
+        if (!Object.keys(roleMappings).includes(String(roleId))) {
+            return res.status(400).json({ message: 'Invalid role_id provided.' });
+        }
+
+        sql += `, role_id = ?`;
+        values.push(roleId);
+    }
+
+    sql += ` WHERE user_id = ?`;
+    values.push(id);
 
     try {
-        const sql = `
-            UPDATE users
-            SET first_name    = ?,
-                last_name     = ?,
-                date_of_birth = ?,
-                email         = ?,
-                role_id       = ?
-            WHERE user_id = ?
-        `;
-        const values = [firstName, lastName, dateOfBirth, email, roleId, id];
+        // Execute the update query
+        const [result] = await db.query(sql, values);
 
-        await db.query(sql, values);
-        res.status(200).json({message: 'User updated successfully.'});
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        res.status(200).json({ message: 'User updated successfully.' });
     } catch (error) {
         console.error('Error updating user:', error);
-        res.status(500).json({message: 'Server error updating user.'});
+        res.status(500).json({ message: 'Server error updating user.' });
     }
 });
 
