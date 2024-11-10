@@ -717,6 +717,7 @@ app.get('/giftshopitems/:id/image', async (req, res) => {
         }
 
         const imageType = rows[0].image_type || 'application/octet-stream';
+        res.set('Cache-Control', 'no-store');
         res.set('Content-Type', imageType);
         res.send(rows[0].image);
     } catch (error) {
