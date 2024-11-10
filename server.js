@@ -1301,7 +1301,7 @@ async function generateGiftShopRevenueReport(reportPeriodType, startDate, endDat
     } else if (reportPeriodType === 'single_day') {
         query = `
             SELECT t.transaction_id,
-                   t.transaction_date,
+                   CONVERT_TZ(t.transaction_date, 'America/Chicago', '+00:00') AS transaction_date,
                    t.transaction_type,
                    t.payment_status,
                    u.username,
