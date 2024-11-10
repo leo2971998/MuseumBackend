@@ -82,9 +82,6 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({storage});
-// ----- MULTER: IMAGE UPLOAD -----------------------------------------------------------------------
-const uploadMulter = multer({storage: multer.memoryStorage()});
-// --------------------------------------------------------------------------------------------------
 
 // ----- EMAIL CONFIGURATION ------------------------------------------------------------------------
 const emailConfig = {
