@@ -1385,10 +1385,6 @@ app.post('/announcements', async (req, res) => {
 // Get all announcements (including deleted) for admin
 app.get('/announcements/all', async (req, res) => {
     // Only admins can access this endpoint
-    if (req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. Admins only.'});
-    }
-
     try {
         const [rows] = await db.query('SELECT * FROM announcements ORDER BY created_at DESC');
         res.status(200).json(rows);
