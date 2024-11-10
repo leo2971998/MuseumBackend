@@ -870,9 +870,6 @@ app.get('/users/:id', async (req, res) => {
     const {id} = req.params;
 
     // Ensure the user can only access their own profile or admin can access any
-    if (req.userId !== id && req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied.'});
-    }
 
     try {
         const [rows] = await db.query(`
@@ -965,9 +962,6 @@ app.put('/users/:id/change-password', async (req, res) => {
     const {currentPassword, newPassword} = req.body;
 
     // Ensure the user can only change their own password or admin can change any
-    if (req.userId !== id && req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. You can only change your own password.'});
-    }
 
     try {
         const [rows] = await db.query('SELECT password FROM users WHERE user_id = ?', [id]);
@@ -1347,9 +1341,6 @@ app.post('/announcements', async (req, res) => {
     const {title, content, target_audience, priority} = req.body;
 
     // Only admin can create announcements
-    if (req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. Only admins can create announcements.'});
-    }
 
     // Validate inputs
     if (!title || !content || !target_audience || !priority) {
@@ -1422,9 +1413,6 @@ app.put('/announcements/:id', async (req, res) => {
     const {title, content, target_audience, priority} = req.body;
 
     // Only admin can update announcements
-    if (req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. Only admins can update announcements.'});
-    }
 
     // Validate inputs
     if (!title || !content || !target_audience || !priority) {
@@ -1470,10 +1458,6 @@ app.put('/announcements/:id', async (req, res) => {
 app.delete('/announcements/:id', async (req, res) => {
     const {id} = req.params;
 
-    // Only admin can delete announcements
-    if (req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. Only admins can delete announcements.'});
-    }
 
     try {
         const sql = `
@@ -1498,9 +1482,6 @@ app.put('/announcements/:id/restore', async (req, res) => {
     const {id} = req.params;
 
     // Only admin can restore announcements
-    if (req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. Only admins can restore announcements.'});
-    }
 
     try {
         const sql = `
