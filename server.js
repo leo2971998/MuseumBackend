@@ -777,7 +777,7 @@ app.put('/giftshopitems/:id', uploadMulter.single('image'), async (req, res) => 
 
 
 // Hard delete a gift shop item (Admin only)
-app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res) => {
+app.delete('/giftshopitems/:id/hard-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -797,7 +797,7 @@ app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res)
 
 
 // Soft delete a gift shop item (Admin only)
-app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/soft-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -811,7 +811,7 @@ app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) =>
 });
 
 // Soft delete a gift shop item (Admin only)
-app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/soft-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -825,7 +825,7 @@ app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) =>
 });
 
 /// Get all users (Admin only)
-app.get('/users', authenticateAdmin, async (req, res) => {
+app.get('/users', async (req, res) => {
     try {
         const [rows] = await db.query(`
             SELECT user_id,
@@ -850,7 +850,7 @@ app.get('/users', authenticateAdmin, async (req, res) => {
         res.status(500).json({message: 'Server error fetching users.'});
     }
 });
-app.get('/giftshopitems/logs', authenticateAdmin, async (req, res) => {
+app.get('/giftshopitems/logs', async (req, res) => {
     try {
         const [rows] = await db.query(`
             SELECT l.*, u.username, i.name_ AS item_name
@@ -890,7 +890,7 @@ app.get('/users/:id', async (req, res) => {
     }
 });
 // Update user (Admin only)
-app.put('/users/:id', authenticateAdmin, async (req, res) => {
+app.put('/users/:id', async (req, res) => {
     const {id} = req.params;
     const {firstName, lastName, dateOfBirth, email, roleId} = req.body;
 
@@ -915,7 +915,7 @@ app.put('/users/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Soft delete user (Admin only)
-app.put('/users/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/users/:id/soft-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -929,7 +929,7 @@ app.put('/users/:id/soft-delete', authenticateAdmin, async (req, res) => {
 });
 
 // Hard delete user (Admin only)
-app.delete('/users/:id', authenticateAdmin, async (req, res) => {
+app.delete('/users/:id', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -943,7 +943,7 @@ app.delete('/users/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Restore a gift shop item (Admin only)
-app.put('/giftshopitems/:id/restore', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/restore', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -991,7 +991,7 @@ app.put('/users/:id/change-password', async (req, res) => {
     }
 });
 // Admin reset password endpoint
-app.put('/users/:id/reset-password', authenticateAdmin, async (req, res) => {
+app.put('/users/:id/reset-password', async (req, res) => {
     const {id} = req.params;
     const {newPassword} = req.body;
 
@@ -1116,7 +1116,7 @@ app.post('/checkout', async (req, res) => {
 });
 
 // Updated /reports endpoint
-app.post('/reports', authenticateAdmin, async (req, res) => {
+app.post('/reports', async (req, res) => {
     const {
         report_category, report_type, report_period_type, // 'date_range', 'month', 'year', or 'single_day'
         start_date, end_date, selected_month, selected_year, // New field for 'year' report
