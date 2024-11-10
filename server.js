@@ -664,7 +664,7 @@ const uploadMulter = multer({storage: multer.memoryStorage()});
 // ----- GIFT SHOP ITEMS ENDPOINTS -----
 
 // Create item API
-app.post('/giftshopitems', uploadMulter.single('image'), authenticateUser, async (req, res) => {
+app.post('/giftshopitems', uploadMulter.single('image'), async (req, res) => {
     const {name_, category, price, quantity} = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
     const imageType = req.file ? req.file.mimetype : null;
@@ -728,7 +728,7 @@ app.get('/giftshopitems/:id/image', async (req, res) => {
 
 // Update item API
 // Update item API
-app.put('/giftshopitems/:id', uploadMulter.single('image'), authenticateUser, async (req, res) => {
+app.put('/giftshopitems/:id', uploadMulter.single('image'), async (req, res) => {
     const {id} = req.params;
     const {name_, category, price, quantity} = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
@@ -866,7 +866,7 @@ app.get('/giftshopitems/logs', authenticateAdmin, async (req, res) => {
     }
 });
 // Get user profile
-app.get('/users/:id', authenticateUser, async (req, res) => {
+app.get('/users/:id', async (req, res) => {
     const {id} = req.params;
 
     // Ensure the user can only access their own profile or admin can access any
@@ -960,7 +960,7 @@ app.put('/giftshopitems/:id/restore', authenticateAdmin, async (req, res) => {
 });
 
 // ----- CHECKOUT ENDPOINT ------------------------------------------------------------------------
-app.put('/users/:id/change-password', authenticateUser, async (req, res) => {
+app.put('/users/:id/change-password', async (req, res) => {
     const {id} = req.params;
     const {currentPassword, newPassword} = req.body;
 
@@ -1027,7 +1027,7 @@ app.put('/users/:id/reset-password', authenticateAdmin, async (req, res) => {
     }
 });
 // ----- CHECKOUT ENDPOINT (Assuming other checkout logic is implemented)
-app.post('/checkout', authenticateUser, async (req, res) => {
+app.post('/checkout', async (req, res) => {
     const {payment_method, items} = req.body;
     const user_id = req.userId; // Retrieved from the authenticateUser middleware
 
@@ -1343,7 +1343,7 @@ app.get('/paymentmethods', async (req, res) => {
     }
 });
 // Create a new announcement (Admin only)
-app.post('/announcements', authenticateUser, async (req, res) => {
+app.post('/announcements', async (req, res) => {
     const {title, content, target_audience, priority} = req.body;
 
     // Only admin can create announcements
@@ -1383,7 +1383,7 @@ app.post('/announcements', authenticateUser, async (req, res) => {
 });
 
 // Get all announcements (including deleted) for admin
-app.get('/announcements/all', authenticateUser, async (req, res) => {
+app.get('/announcements/all', async (req, res) => {
     // Only admins can access this endpoint
     if (req.userRole !== 'admin') {
         return res.status(403).json({message: 'Access denied. Admins only.'});
@@ -1399,7 +1399,7 @@ app.get('/announcements/all', authenticateUser, async (req, res) => {
 });
 
 // Get announcements for a user based on their role
-app.get('/announcements/user', authenticateUser, async (req, res) => {
+app.get('/announcements/user', async (req, res) => {
     const {userRole} = req;
 
     try {
@@ -1421,7 +1421,7 @@ app.get('/announcements/user', authenticateUser, async (req, res) => {
 });
 
 // Update an announcement (Admin only)
-app.put('/announcements/:id', authenticateUser, async (req, res) => {
+app.put('/announcements/:id', async (req, res) => {
     const {id} = req.params;
     const {title, content, target_audience, priority} = req.body;
 
@@ -1471,7 +1471,7 @@ app.put('/announcements/:id', authenticateUser, async (req, res) => {
 });
 
 // Soft delete an announcement (Admin only)
-app.delete('/announcements/:id', authenticateUser, async (req, res) => {
+app.delete('/announcements/:id', async (req, res) => {
     const {id} = req.params;
 
     // Only admin can delete announcements
@@ -1498,7 +1498,7 @@ app.delete('/announcements/:id', authenticateUser, async (req, res) => {
 });
 
 // Restore a soft-deleted announcement (Admin only)
-app.put('/announcements/:id/restore', authenticateUser, async (req, res) => {
+app.put('/announcements/:id/restore', async (req, res) => {
     const {id} = req.params;
 
     // Only admin can restore announcements
