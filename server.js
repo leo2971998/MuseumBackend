@@ -85,6 +85,7 @@ const storage = multer.diskStorage({
 const upload = multer({storage});
 const roleMappings = {
     1: 'admin', 2: 'staff', 3: 'customer', 4: 'member',
+};
 // ----- EMAIL CONFIGURATION ------------------------------------------------------------------------
 const emailConfig = {
     smtp: {
