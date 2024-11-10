@@ -1511,9 +1511,8 @@ app.put('/announcements/:id', async (req, res) => {
 });
 
 // Soft delete an announcement (Admin only)
-app.delete('/announcements/:id', async (req, res) => {
-    const {id} = req.params;
-
+app.delete('/announcements/:id', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
 
     try {
         const sql = `
@@ -1523,13 +1522,34 @@ app.delete('/announcements/:id', async (req, res) => {
         `;
         const [result] = await db.query(sql, [id]);
         if (result.affectedRows === 0) {
-            return res.status(404).json({message: 'Announcement not found.'});
+            return res.status(404).json({ message: 'Announcement not found.' });
         }
 
-        res.json({message: 'Announcement deleted successfully.'});
+        res.json({ message: 'Announcement soft-deleted successfully.' });
     } catch (error) {
-        console.error('Error deleting announcement:', error);
-        res.status(500).json({message: 'Server error deleting announcement.'});
+        console.error('Error soft-deleting announcement:', error);
+        res.status(500).json({ message: 'Server error soft-deleting announcement.' });
+    }
+});
+
+// Hard delete an announcement (Admin only)
+app.delete('/announcements/:id/hard', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const sql = `
+            DELETE FROM announcements
+            WHERE id = ?
+        `;
+        const [result] = await db.query(sql, [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Announcement not found.' });
+        }
+
+        res.json({ message: 'Announcement hard-deleted successfully.' });
+    } catch (error) {
+        console.error('Error hard-deleting announcement:', error);
+        res.status(500).json({ message: 'Server error hard-deleting announcement.' });
     }
 });
 
