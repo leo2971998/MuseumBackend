@@ -6,6 +6,7 @@ const cors = require('cors');
 const multer = require('multer');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
+const path = require('path');
 require('dotenv').config();
 const app = express();
 
