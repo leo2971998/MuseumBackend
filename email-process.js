@@ -6,28 +6,27 @@ require('dotenv').config();
 
 // Database configuration
 const dbConfig = {
-  host: 'museumcosc3380.mysql.database.azure.com',
-  user: 'Dennis',
-  password: 'StrongPassword123',
-  database: 'museum',
+  host: process.env.DB_HOST, // e.g., 'museumcosc3380.mysql.database.azure.com'
+  user: process.env.DB_USER, // e.g., 'Dennis'
+  password: process.env.DB_PASS, // e.g., 'StrongPassword123'
+  database: process.env.DB_NAME, // e.g., 'museum'
 };
 
 // Email configuration
-// ----- EMAIL CONFIGURATION ------------------------------------------------------------------------
 const emailConfig = {
-    smtp: {
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-        },
+  smtp: {
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER, // e.g., 'museumgiftshop123@gmail.com'
+      pass: process.env.EMAIL_PASS, // e.g., 'tqxo woip lctq fvzk' (Google App Password)
     },
-    from: {
-        name: 'Museum Gift Shop',
-        address: process.env.EMAIL_USER,
-    },
+  },
+  from: {
+    name: 'Museum Gift Shop',
+    address: process.env.EMAIL_USER,
+  },
 };
 
 async function processEmails() {
