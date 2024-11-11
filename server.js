@@ -1777,21 +1777,20 @@ app.post('/membership-registration', async (req, res) => {
 async function processEmails() {
     let connection;
     try {
-        // Get a connection from the pool
-        connection = await db.getConnection();
-
+        // Create database connection
+        connection = await mysql.createConnection(dbConfig);
+        
         // Create email transporter
         const transporter = nodemailer.createTransport(emailConfig.smtp);
 
         // Get unprocessed emails
         const [emails] = await connection.execute(`
-      SELECT eq.*, si.supplier_name, si.supplier_email, gsi.name_ AS item_name, gsi.quantity
-      FROM email_queue eq
-      JOIN supplier_items si ON eq.supplier_id = si.supplier_item_id
-      JOIN giftshopitem gsi ON eq.item_id = gsi.item_id
-      WHERE eq.processed = 0
-      ORDER BY eq.created_at ASC
-    `);
+            SELECT eq.*, si.supplier_name, si.supplier_email 
+            FROM email_queue eq
+            JOIN supplier_items si ON eq.supplier_id = si.supplier_item_id
+            WHERE eq.processed = 0
+            ORDER BY eq.created_at ASC
+        `);
 
         if (emails.length > 0) {
             console.log(`Found ${emails.length} emails to process`);
@@ -1805,36 +1804,31 @@ async function processEmails() {
                         to: email.supplier_email,
                         subject: `Low Inventory Alert - ${email.item_name}`,
                         html: `
-              <h2>Low Inventory Alert</h2>
-              <p>Dear ${email.supplier_name},</p>
-              <p>This is an automated alert that inventory is low for:</p>
-              <ul>
-                <li><strong>Item:</strong> ${email.item_name}</li>
-                <li><strong>Current Quantity:</strong> ${email.quantity}</li>
-              </ul>
-              <p>Please arrange for replenishment of this item.</p>
-              <br>
-              <p>Best regards,<br>Museum Gift Shop Team</p>
-            `,
+                            <h2>Low Inventory Alert</h2>
+                            <p>Dear ${email.supplier_name},</p>
+                            <p>This is an automated alert that inventory is low for:</p>
+                            <ul>
+                                <li><strong>Item:</strong> ${email.item_name}</li>
+                                <li><strong>Current Quantity:</strong> ${email.quantity}</li>
+                            </ul>
+                            <p>Please arrange for replenishment of this item.</p>
+                            <br>
+                            <p>Best regards,<br>Museum Gift Shop Team</p>
+                        `
                     };
 
                     // Send email
                     await transporter.sendMail(mailOptions);
 
                     // Mark as processed
-                    await connection.execute(
-                        `
-            UPDATE email_queue 
-            SET processed = 1,
-                processed_at = NOW() 
-            WHERE id = ?
-          `,
-                        [email.id]
-                    );
+                    await connection.execute(`
+                        UPDATE email_queue 
+                        SET processed = 1,
+                            processed_at = NOW() 
+                        WHERE id = ?
+                    `, [email.id]);
 
-                    console.log(
-                        `Successfully sent email to ${email.supplier_email} for ${email.item_name}`
-                    );
+                    console.log(`Successfully sent email to ${email.supplier_email} for ${email.item_name}`);
                 } catch (error) {
                     console.error(`Error processing email ${email.id}:`, error);
                 }
@@ -1842,11 +1836,12 @@ async function processEmails() {
         } else {
             console.log('No new emails to process');
         }
+
     } catch (error) {
-        console.error('Error in processEmails:', error);
+        console.error('Error:', error);
     } finally {
         if (connection) {
-            connection.release();
+            await connection.end();
         }
     }
 }
