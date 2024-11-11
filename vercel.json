@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/email-process",
+      "dest": "email-process.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "server.js"
     }
@@ -19,7 +23,7 @@
   "crons": [
     {
       "path": "/email-process",
-      "schedule": "*/1 * * * *"
+      "schedule": "*/1 * * * *" // Runs every minute
     }
   ]
 }
