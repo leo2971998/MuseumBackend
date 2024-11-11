@@ -13,20 +13,21 @@ const dbConfig = {
 };
 
 // Email configuration
+// ----- EMAIL CONFIGURATION ------------------------------------------------------------------------
 const emailConfig = {
-  smtp: {
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: 'museumgiftshop123@gmail.com',
-      pass: 'tqxo woip lctq fvzk', // Google App Password
+    smtp: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
     },
-  },
-  from: {
-    name: 'Museum Gift Shop',
-    address: 'museumgiftshop123@gmail.com',
-  },
+    from: {
+        name: 'Museum Gift Shop',
+        address: process.env.EMAIL_USER,
+    },
 };
 
 async function processEmails() {
