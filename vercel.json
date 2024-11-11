@@ -6,14 +6,14 @@
       "use": "@vercel/node"
     },
     {
-      "src": "email-process.js",
+      "src": "api/email-process.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/email-process",
-      "dest": "email-process.js"
+      "src": "/api/email-process",
+      "dest": "api/email-process.js"
     },
     {
       "src": "/(.*)",
@@ -22,7 +22,7 @@
   ],
   "crons": [
     {
-      "path": "/email-process",
+      "path": "/api/email-process",
       "schedule": "*/1 * * * *"
     }
   ]
