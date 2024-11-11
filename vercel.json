@@ -4,12 +4,22 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "email-process.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
       "dest": "server.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/email-process",
+      "schedule": "*/1 * * * *"
     }
   ]
 }
