@@ -6,10 +6,10 @@ require('dotenv').config();
 
 // Database configuration
 const dbConfig = {
-  host: process.env.DB_HOST, // e.g., 'museumcosc3380.mysql.database.azure.com'
-  user: process.env.DB_USER, // e.g., 'Dennis'
-  password: process.env.DB_PASS, // e.g., 'StrongPassword123'
-  database: process.env.DB_NAME, // e.g., 'museum'
+  host: process.env.DB_HOST,       // e.g., 'museumcosc3380.mysql.database.azure.com'
+  user: process.env.DB_USER,       // e.g., 'Dennis'
+  password: process.env.DB_PASS,   // e.g., 'StrongPassword123'
+  database: process.env.DB_NAME,   // e.g., 'museum'
 };
 
 // Email configuration
@@ -29,16 +29,19 @@ const emailConfig = {
   },
 };
 
+// Function to process emails
 async function processEmails() {
   let connection;
   try {
-    // Create database connection
+    // Establish database connection
     connection = await mysql.createConnection(dbConfig);
+    console.log('Database connection established.');
 
     // Create email transporter
     const transporter = nodemailer.createTransport(emailConfig.smtp);
+    console.log('Email transporter created.');
 
-    // Get unprocessed emails
+    // Fetch unprocessed emails
     const [emails] = await connection.execute(`
       SELECT eq.*, si.supplier_name, si.supplier_email 
       FROM email_queue eq
@@ -46,14 +49,12 @@ async function processEmails() {
       WHERE eq.processed = 0
       ORDER BY eq.created_at ASC
     `);
+    console.log(`Fetched ${emails.length} unprocessed emails.`);
 
     if (emails.length > 0) {
-      console.log(`Found ${emails.length} emails to process`);
-
-      // Process each email
       for (const email of emails) {
         try {
-          // Create email content
+          // Define email options
           const mailOptions = {
             from: `"${emailConfig.from.name}" <${emailConfig.from.address}>`,
             to: email.supplier_email,
@@ -74,8 +75,9 @@ async function processEmails() {
 
           // Send email
           await transporter.sendMail(mailOptions);
+          console.log(`Email sent to ${email.supplier_email} for ${email.item_name}.`);
 
-          // Mark as processed
+          // Mark email as processed
           await connection.execute(
             `
             UPDATE email_queue 
@@ -85,31 +87,31 @@ async function processEmails() {
           `,
             [email.id]
           );
-
-          console.log(
-            `Successfully sent email to ${email.supplier_email} for ${email.item_name}`
-          );
-        } catch (error) {
-          console.error(`Error processing email ${email.id}:`, error);
+          console.log(`Email ID ${email.id} marked as processed.`);
+        } catch (emailError) {
+          console.error(`Error processing email ID ${email.id}:`, emailError);
         }
       }
     } else {
-      console.log('No new emails to process');
+      console.log('No new emails to process.');
     }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in processEmails:', error);
   } finally {
     if (connection) {
       await connection.end();
+      console.log('Database connection closed.');
     }
   }
 }
 
 // Export the handler function for Vercel
 module.exports = async (req, res) => {
+  console.log('Email processing function triggered.');
   try {
     await processEmails();
     res.status(200).json({ message: 'Emails processed successfully.' });
+    console.log('Emails processed successfully.');
   } catch (error) {
     console.error('Error processing emails:', error);
     res.status(500).json({ error: 'Internal Server Error' });
