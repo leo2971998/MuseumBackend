@@ -23,7 +23,7 @@
   "crons": [
     {
       "path": "/email-process",
-      "schedule": "*/1 * * * *" // Runs every minute
+      "schedule": "*/1 * * * *"
     }
   ]
 }
