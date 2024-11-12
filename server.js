@@ -36,21 +36,14 @@ app.use(
         allowedHeaders: ['Content-Type', 'Authorization', 'role', 'user-id'],
     })
 );
-app.use(async (req, res, next) => {
+app.use((req, res, next) => {
     const userId = req.headers['user-id'];
     const role = req.headers['role'];
 
     if (userId && role) {
-        try {
-            // Set session variables for the current connection
-            await db.query(`SET @current_user_id = ?`, [userId]);
-            await db.query(`SET @current_user_role = ?`, [role]);
-        } catch (error) {
-            console.error('Error setting session variables:', error);
-            // Optionally, you can send an error response here
-        }
+        req.userId = userId;
+        req.userRole = role;
     }
-
     next();
 });
 // Express middlewares
@@ -1132,17 +1125,16 @@ async function authenticateUser(req, res, next) {
                 req.userRole = role;
                 next();
             } else {
-                res.status(403).json({ message: 'Access denied. User is deleted or does not exist.' });
+                res.status(403).json({message: 'Access denied. User is deleted.'});
             }
         } catch (error) {
             console.error('Error in authenticateUser middleware:', error);
-            res.status(500).json({ message: 'Server error during authentication.' });
+            res.status(500).json({message: 'Server error during authentication.'});
         }
     } else {
-        res.status(401).json({ message: 'Unauthorized access. User ID and role are required in headers.' });
+        res.status(401).json({message: 'Unauthorized access.'});
     }
 }
-
 
 // ----- MULTER CONFIGURATION -----
 const uploadMulter = multer({storage: multer.memoryStorage()});
