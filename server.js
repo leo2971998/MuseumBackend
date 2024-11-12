@@ -566,44 +566,91 @@ app.post('/register', async (req, res) => {
     }
 });
 app.post('/login', async (req, res) => {
-    const {username, password} = req.body;
+    const { username, password } = req.body;
 
+    // Validate input
     if (!username || !password) {
-        return res.status(400).json({message: 'Username and password are required.'});
+        return res.status(400).json({ message: 'Username and password are required.' });
     }
 
     try {
+        // Query to fetch user details along with role name and membership status
         const [userRows] = await db.query(`
-            SELECT user_id, username, password, role_id, is_deleted
+            SELECT
+                users.user_id,
+                users.username,
+                users.password,
+                users.role_id,
+                users.is_deleted,
+                roles.role_name,
+                (users.role_id = 4) AS is_member
             FROM users
-            WHERE username = ?
+                     JOIN roles ON users.role_id = roles.id
+            WHERE users.username = ?
         `, [username]);
 
+        // Check if user exists
         if (userRows.length === 0) {
-            return res.status(400).json({message: 'Invalid username or password.'});
+            return res.status(400).json({ message: 'Invalid username or password.' });
         }
 
         const user = userRows[0];
 
-        // Check if user is deleted
+        // Check if the account is deactivated
         if (user.is_deleted === 1) {
-            return res.status(403).json({message: 'Account has been deactivated. Please contact support.'});
+            return res.status(403).json({ message: 'Account has been deactivated. Please contact support.' });
         }
 
+        // Verify password
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
-            return res.status(400).json({message: 'Invalid username or password.'});
+            return res.status(400).json({ message: 'Invalid username or password.' });
         }
 
-        // Map role_id to role_name
-        const roleName = roleMappings[user.role_id] || 'unknown';
+        // Update the `updated_at` timestamp
+        await db.query(
+            'UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            [user.user_id]
+        );
 
-        res.status(200).json({
-            message: 'Login successful!', userId: user.user_id, role: roleName, username: user.username,
-        });
+        // Initialize membership information
+        let membershipInfo = null;
+
+        // If the user is a member, fetch membership details
+        if (user.is_member) {
+            const [warningRows] = await db.query(`
+                SELECT 
+                    expiration_warning, 
+                    expire_date 
+                FROM membership 
+                WHERE user_id = ? 
+                  AND expire_date >= CURRENT_TIMESTAMP
+                ORDER BY expire_date ASC 
+                LIMIT 1
+            `, [user.user_id]);
+
+            membershipInfo = warningRows[0] || null;
+        }
+
+        // Prepare the response payload
+        const responsePayload = {
+            message: 'Login successful!',
+            userId: user.user_id,
+            role: user.role_name,
+            username: user.username,
+            // Only include membershipWarning and expireDate if the user is a member
+            ...(user.is_member && membershipInfo && {
+                membershipWarning: membershipInfo.expiration_warning === 1,
+                expireDate: membershipInfo.expire_date
+            })
+        };
+
+        // Send the successful response
+        res.status(200).json(responsePayload);
+
     } catch (error) {
         console.error('Server error during login:', error);
-        res.status(500).json({message: 'Server error.'});
+        res.status(500).json({ message: 'Server error.' });
     }
 });
 // ----- AUTHENTICATION MIDDLEWARE -----
@@ -1563,7 +1610,20 @@ app.put('/announcements/:id/restore', async (req, res) => {
 // ----- (LEO DONE) --------------------------------------------------------------------------------
 
 // ----- (MUNA) ------------------------------------------------------------------------------------
-
+app.get('/api/member/profile', authenticateUser, async (req, res) => {
+    const memberId = req.userId;  // `authenticateUser` middleware attaches userId to req
+    try {
+        const [result] = await db.query('SELECT first_name, last_name FROM users WHERE user_id = ?', [memberId]);
+        if (result.length > 0) {
+            const member = result[0];
+            res.json({ firstName: member.first_name, lastName: member.last_name });
+        } else {
+            res.status(404).json({ error: 'Member not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Database error' });
+    }
+});
 // (Assuming MUNA's endpoints are already correctly implemented)
 // ----- (MUNA DONE) ------------------------------------------------------------------------------
 
