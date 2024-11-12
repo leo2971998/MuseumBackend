@@ -191,7 +191,7 @@ const uploadArtworkImage = multer({ storage: multer.memoryStorage() }); // Use m
 app.post('/artwork', uploadArtworkImage.single('image'), async (req, res) => {
     try {
         const {
-            Title, artist_id, department_id, Description, CreationYear, price, 
+            Title, artist_id, department_id, Description, CreationYear, price,
             Medium, height, width, depth, acquisition_date, location, ArtworkCondition
         } = req.body;
 
@@ -215,7 +215,6 @@ app.post('/artwork', uploadArtworkImage.single('image'), async (req, res) => {
         );
 
         res.status(201).json({ message: 'Artwork added successfully', artworkId: result.insertId });
-        console.log("Artwork added successfully");
     } catch (error) {
         console.error('Error inserting artwork:', error);
         res.status(500).json({ message: 'Failed to add artwork' });
@@ -323,14 +322,14 @@ app.patch('/artwork/:id', uploadArtworkImage.single('image'), async (req, res) =
 app.patch('/artwork/:id/restore', async (req, res) => {
     const { id } = req.params;
     try {
-      // Update the artwork's is_deleted status to false
-      await db.query('UPDATE artwork SET is_deleted = 0 WHERE ArtworkID = ?', [id]);
-      res.json({ message: 'Artwork restored successfully' });
+        // Update the artwork's is_deleted status to false
+        await db.query('UPDATE artwork SET is_deleted = 0 WHERE ArtworkID = ?', [id]);
+        res.json({ message: 'Artwork restored successfully' });
     } catch (error) {
-      console.error('Error restoring artwork:', error);
-      res.status(500).json({ message: 'Error restoring artwork' });
+        console.error('Error restoring artwork:', error);
+        res.status(500).json({ message: 'Error restoring artwork' });
     }
-  });
+});
 
 // only delete artwork
 // app.delete('/artwork/:id', async (req, res) => {
@@ -426,7 +425,7 @@ app.get('/artist/:id', async (req, res) => {
 
 //     // Use the isDeleted parameter to filter records accordingly
 //     const query = `
-//         SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
+//         SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality,
 //             artist.birth_year, artist.death_year, artist.is_deleted
 //         FROM artist
 //         LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
@@ -448,7 +447,7 @@ app.get('/artist/:id', async (req, res) => {
 //     const isDeleted = req.query.isDeleted === 'true';
 
 //     const query = `
-//         SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
+//         SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality,
 //             artist.birth_year, artist.death_year, artist.is_deleted
 //         FROM artist
 //         LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
@@ -471,16 +470,16 @@ app.get('/artist-with-artwork', async (req, res) => {
     const isDeleted = req.query.isDeleted === 'true';
 
     const query = `
-        SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
-            artist.birth_year, artist.death_year, artist.is_deleted
+        SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality,
+                        artist.birth_year, artist.death_year, artist.is_deleted
         FROM artist
-        LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
+                 LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
         WHERE artist.is_deleted = ?
-        AND EXISTS (
-            SELECT 1 
-            FROM artwork a 
-            WHERE a.artist_id = artist.ArtistID 
-            AND a.is_deleted = 0
+          AND EXISTS (
+            SELECT 1
+            FROM artwork a
+            WHERE a.artist_id = artist.ArtistID
+              AND a.is_deleted = 0
         )
         ORDER BY name_ ASC
     `;
@@ -499,20 +498,20 @@ app.get('/artist-null-artwork', async (req, res) => {
     const isDeleted = req.query.isDeleted === 'true';
 
     const query = `
-        SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
-            artist.birth_year, artist.death_year, artist.is_deleted
+        SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality,
+                        artist.birth_year, artist.death_year, artist.is_deleted
         FROM artist
-        LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
-        WHERE artist.is_deleted = ? 
-        AND (artwork.ArtworkID IS NULL OR (
+                 LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
+        WHERE artist.is_deleted = ?
+          AND (artwork.ArtworkID IS NULL OR (
             artist.ArtistID IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 
-                FROM artwork a 
-                WHERE a.artist_id = artist.ArtistID 
-                AND a.is_deleted = 0
+                AND NOT EXISTS (
+                SELECT 1
+                FROM artwork a
+                WHERE a.artist_id = artist.ArtistID
+                  AND a.is_deleted = 0
             )
-        ))
+            ))
         ORDER BY name_ ASC
     `;
 
@@ -575,7 +574,7 @@ app.post('/artist', uploadArtistImage.single('image'), async (req, res) => {
 });
 
 app.patch('/artist/:id', uploadArtistImage.single('image'), async (req, res) => {
-    
+
     const artistId = req.params.id;
     const { name, nationality, birthYear, deathYear, description, gender } = req.body;
     let imageBlob = null;
@@ -623,15 +622,15 @@ app.patch('/artist/:id', uploadArtistImage.single('image'), async (req, res) => 
 
 app.patch('/artist/:id/restore', async (req, res) => {
     try {
-      const { id } = req.params;
-      await db.query('UPDATE artist SET is_deleted = 0 WHERE ArtistID = ?', [id]);
-      res.status(200).json({ message: 'Artist restored successfully' });
+        const { id } = req.params;
+        await db.query('UPDATE artist SET is_deleted = 0 WHERE ArtistID = ?', [id]);
+        res.status(200).json({ message: 'Artist restored successfully' });
     } catch (error) {
-      console.error('Error restoring artist:', error);
-      res.status(500).json({ message: 'Failed to restore artist' });
+        console.error('Error restoring artist:', error);
+        res.status(500).json({ message: 'Failed to restore artist' });
     }
-  });
-  
+});
+
 
 // if i delete an artist, i want to delete all the artworks associated with that artist
 // app.delete('/artist/:id', async (req, res) => {
@@ -715,13 +714,13 @@ app.get('/department-with-artwork', async (req, res) => {
     const query = `
         SELECT DISTINCT department.DepartmentID, department.Name, department.Description, department.Location, department.is_deleted
         FROM department
-        LEFT JOIN artwork ON department.DepartmentID = artwork.department_id
+                 LEFT JOIN artwork ON department.DepartmentID = artwork.department_id
         WHERE department.is_deleted = ?
-        AND EXISTS (
+          AND EXISTS (
             SELECT 1
             FROM artwork a
             WHERE a.department_id = department.DepartmentID
-            AND a.is_deleted = 0
+              AND a.is_deleted = 0
         )
         ORDER BY Name ASC
     `;
@@ -738,17 +737,17 @@ app.get('/department-null-artwork', async (req, res) => {
     const query = `
         SELECT DISTINCT department.DepartmentID, department.Name, department.Description, department.Location, department.is_deleted
         FROM department
-        LEFT JOIN artwork ON department.DepartmentID = artwork.department_id
+                 LEFT JOIN artwork ON department.DepartmentID = artwork.department_id
         WHERE department.is_deleted = ?
-        AND (artwork.ArtworkID IS NULL OR (
+          AND (artwork.ArtworkID IS NULL OR (
             department.DepartmentID IS NOT NULL
-            AND NOT EXISTS (
+                AND NOT EXISTS (
                 SELECT 1
                 FROM artwork a
                 WHERE a.department_id = department.DepartmentID
-                AND a.is_deleted = 0
+                  AND a.is_deleted = 0
             )
-        ))
+            ))
         ORDER BY Name ASC
     `;
     try {
@@ -828,9 +827,9 @@ app.get('/exhibition', async (req, res) => {
     // Use the isDeleted parameter to filter records accordingly
     const query = `
         SELECT exhibition_id, name_, start_date, end_date, description_, is_deleted
-            FROM exhibition
-            WHERE exhibition.is_deleted = ?
-            ORDER BY name_ ASC
+        FROM exhibition
+        WHERE exhibition.is_deleted = ?
+        ORDER BY name_ ASC
     `;
     try {
         // Execute the query with isDeleted as a boolean (0 for false, 1 for true)
@@ -884,12 +883,11 @@ app.post('/exhibition', uploadExhibitionImage.single('image'), async (req, res) 
                 .toBuffer();
         }
         const [result] = await db.query(
-            `INSERT INTO exhibition (name_, start_date, end_date, description_, image, image_type) 
+            `INSERT INTO exhibition (name_, start_date, end_date, description_, image, image_type)
              VALUES (?, ?, ?, ?, ?, ?)`,
             [name, sdate, edate, description, imageBlob, imageType]
         );
         res.status(201).json({ message: 'Exhibition added successfully', exId: result.insertId });
-        console.log("Exhibition added successfully");
     } catch (error) {
         console.error('Error inserting exhibition:', error);
         res.status(500).json({ message: 'Failed to add exhibition' });
@@ -1024,8 +1022,6 @@ app.post('/login', async (req, res) => {
     }
 
     try {
-        console.log('Attempting login for username:', username);
-
         // Query to fetch user details along with role name and membership status
         const [userRows] = await db.query(`
             SELECT
@@ -1044,11 +1040,6 @@ app.post('/login', async (req, res) => {
         `, [username]);
 
         // Debug log the query result
-        console.log('Login query result:', {
-            rowCount: userRows.length,
-            userData: userRows[0]
-        });
-
         // Check if user exists
         if (userRows.length === 0) {
             return res.status(400).json({ message: 'Invalid username or password.' });
@@ -1079,14 +1070,14 @@ app.post('/login', async (req, res) => {
         // If the user is a member, fetch membership details
         if (user.is_member) {
             const [membershipRows] = await db.query(`
-                SELECT 
-                    expiration_warning, 
-                    expire_date 
-                FROM membership 
-                WHERE user_id = ? 
+                SELECT
+                    expiration_warning,
+                    expire_date
+                FROM membership
+                WHERE user_id = ?
                   AND expire_date >= CURRENT_TIMESTAMP
-                ORDER BY expire_date ASC 
-                LIMIT 1
+                ORDER BY expire_date ASC
+                    LIMIT 1
             `, [user.user_id]);
 
             membershipInfo = membershipRows[0] || null;
@@ -1108,7 +1099,6 @@ app.post('/login', async (req, res) => {
         };
 
         // Debug log the user data being sent
-        console.log('User data being sent to frontend:', responsePayload);
 
         // Send the successful response
         res.status(200).json(responsePayload);
@@ -1711,7 +1701,6 @@ app.put('/users/:id/restore', authenticateAdmin, async (req, res) => {
         // Restore the user by setting is_deleted to 0
         await db.query('UPDATE users SET is_deleted = 0 WHERE user_id = ?', [id]);
 
-        console.log(`User with ID ${id} restored successfully.`);
         res.status(200).json({ message: 'User restored successfully.' });
     } catch (error) {
         console.error(`Error restoring user with ID ${id}:`, error);
@@ -1729,7 +1718,6 @@ app.post('/reports', authenticateAdmin, async (req, res) => {
         price_category, user_type_id
     } = req.body;
 
-    console.log('Received /reports request with body:', req.body); // Debug log
 
     // Input Validation
     if (!report_category || !report_type || !report_period_type) {
@@ -1782,14 +1770,11 @@ app.post('/reports', authenticateAdmin, async (req, res) => {
         if (report_category === 'GiftShopReport') {
             switch (report_type) {
                 case 'revenue':
-                    console.log('Generating Gift Shop Revenue Report');
                     reportData = await generateGiftShopRevenueReport(report_period_type, start_date, end_date, selected_month, selected_year, selected_date, item_category, payment_method, item_id);
                     console.log('Report Data:', reportData); // Debug log
                     break;
                 case 'transaction_details':
-                    console.log('Generating Gift Shop Transaction Details Report');
                     reportData = await generateGiftShopTransactionDetailsReport(report_period_type, start_date, end_date, selected_month, selected_year, selected_date, item_category, payment_method, item_id);
-                    console.log('Report Data:', reportData);
                     break;
                 // Add other report types if needed
                 default:
@@ -1800,19 +1785,16 @@ app.post('/reports', authenticateAdmin, async (req, res) => {
             if (report_type === 'revenue') {
                 switch (report_option_tickets) {
                     case 'totalTickets':
-                        console.log('Generating Tickets Report - Total Tickets');
                         reportData = await generateTotalTicketsReport(
                             report_period_type, start_date, end_date, selected_month, selected_year, selected_date, price_category, user_type_id
                         );
                         break;
                     case 'totalRevenue':
-                        console.log('Generating Tickets Report - Total Revenue');
                         reportData = await generateTotalRevenueReport(
                             report_period_type, start_date, end_date, selected_month, selected_year, selected_date, price_category, user_type_id
                         );
                         break;
                     case 'peakDateSold':
-                        console.log('Generating Tickets Report - Peak Date Sold');
                         reportData = await generatePeakDateSoldReport(
                             report_period_type, start_date, end_date, selected_month, selected_year, selected_date, price_category, user_type_id
                         );
@@ -1941,8 +1923,6 @@ async function generateTotalTicketsReport(reportPeriodType, startDate, endDate, 
     } else {
         throw new Error('Invalid report period type for tickets report.');
     }
-    console.log('Executing SQL Query:', query);
-    console.log('With Parameters:', params);
     const [rows] = await db.query(query, params);
     return rows;
 }
@@ -2030,8 +2010,6 @@ async function generateTotalRevenueReport(reportPeriodType, startDate, endDate, 
     } else {
         throw new Error('Invalid report period type for tickets report.');
     }
-    console.log('Executing SQL Query for Total Revenue Report:', query);
-    console.log('With Parameters:', params);
     const [rows] = await db.query(query, params);
     return rows;
 }
@@ -2171,15 +2149,10 @@ async function generateGiftShopRevenueReport(reportPeriodType, startDate, endDat
         `;
     }
 
-    console.log('Executing SQL Query for Revenue Report:', query); // Debug log
-    console.log('With Parameters:', params); // Debug log
-
     try {
         const [rows] = await db.query(query, params);
-        console.log('Revenue Report Query Result:', rows); // Debug log
         return rows;
     } catch (error) {
-        console.error('Error in generateGiftShopRevenueReport:', error); // Debug log with error details
         throw error;
     }
 }
@@ -2201,9 +2174,9 @@ async function generateGiftShopTransactionDetailsReport(reportPeriodType, startD
                    tgi.price_at_purchase,
                    (tgi.quantity * tgi.price_at_purchase) AS item_total
             FROM \`transaction\` t
-            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
-            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
-            JOIN users u ON t.user_id = u.user_id
+                     JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+                     JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+                     JOIN users u ON t.user_id = u.user_id
             WHERE t.transaction_date >= ? AND t.transaction_date <= ?
         `;
         params = [startDate, endDate];
@@ -2221,9 +2194,9 @@ async function generateGiftShopTransactionDetailsReport(reportPeriodType, startD
                    tgi.price_at_purchase,
                    (tgi.quantity * tgi.price_at_purchase) AS item_total
             FROM \`transaction\` t
-            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
-            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
-            JOIN users u ON t.user_id = u.user_id
+                     JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+                     JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+                     JOIN users u ON t.user_id = u.user_id
             WHERE DATE_FORMAT(t.transaction_date, '%Y-%m') = ?
         `;
         params = [selectedMonth];
@@ -2241,9 +2214,9 @@ async function generateGiftShopTransactionDetailsReport(reportPeriodType, startD
                    tgi.price_at_purchase,
                    (tgi.quantity * tgi.price_at_purchase) AS item_total
             FROM \`transaction\` t
-            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
-            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
-            JOIN users u ON t.user_id = u.user_id
+                     JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+                     JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+                     JOIN users u ON t.user_id = u.user_id
             WHERE YEAR(t.transaction_date) = ?
         `;
         params = [selectedYear];
@@ -2261,9 +2234,9 @@ async function generateGiftShopTransactionDetailsReport(reportPeriodType, startD
                    tgi.price_at_purchase,
                    (tgi.quantity * tgi.price_at_purchase) AS item_total
             FROM \`transaction\` t
-            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
-            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
-            JOIN users u ON t.user_id = u.user_id
+                     JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+                     JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+                     JOIN users u ON t.user_id = u.user_id
             WHERE DATE(t.transaction_date) = ?
         `;
         params = [selectedDate];
@@ -2290,12 +2263,9 @@ async function generateGiftShopTransactionDetailsReport(reportPeriodType, startD
         ORDER BY t.transaction_date
     `;
 
-    console.log('Executing SQL Query for Transaction Details Report:', query);
-    console.log('With Parameters:', params);
 
     try {
         const [rows] = await db.query(query, params);
-        console.log('Transaction Details Report Query Result:', rows);
         return rows;
     } catch (error) {
         console.error('Error in generateGiftShopTransactionDetailsReport:', error);
@@ -2605,10 +2575,10 @@ app.get('/api/events', async (req, res) => {
 app.get('/api/events/:id/members', async (req, res) => {
     const eventId = req.params.id;
     try {
-        const [result] = await db.query(`SELECT DISTINCT membership.fname, membership.lname 
-                                        FROM events_transaction 
-                                        JOIN membership ON events_transaction.membership_id = membership.membership_id
-                                        WHERE event_id = ?`, [eventId]);
+        const [result] = await db.query(`SELECT DISTINCT membership.fname, membership.lname
+                                         FROM events_transaction
+                                                  JOIN membership ON events_transaction.membership_id = membership.membership_id
+                                         WHERE event_id = ?`, [eventId]);
         res.json(result);
     } catch (error) {
         console.error('Error fetching members:', error);
@@ -2677,13 +2647,6 @@ app.post('/membership-registration', authenticateMembershipAccess, async (req, r
     const userId = req.headers['user-id'];
     const { first_name, last_name, type_of_membership } = req.body;
 
-    console.log('Received membership registration request:', {
-        userId,
-        first_name,
-        last_name,
-        type_of_membership
-    });
-
     try {
         await db.query('START TRANSACTION');
 
@@ -2702,7 +2665,7 @@ app.post('/membership-registration', authenticateMembershipAccess, async (req, r
 
         // Updated column names: fname and lname (no underscore)
         const insertQuery = `
-            INSERT INTO membership 
+            INSERT INTO membership
             (user_id, type_of_membership, expire_date, expiration_warning, fname, lname)
             VALUES (?, ?, ?, ?, ?, ?)
         `;
@@ -2716,7 +2679,6 @@ app.post('/membership-registration', authenticateMembershipAccess, async (req, r
             last_name
         ];
 
-        console.log('Insert params:', insertParams);
 
         await db.query(insertQuery, insertParams);
 
