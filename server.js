@@ -1370,9 +1370,10 @@ app.get('/users', async (req, res) => {
 app.get('/giftshopitems/logs', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT l.*, u.username, i.name_ AS item_name
+            SELECT l.*, u.username, r.role_name AS role, i.name_ AS item_name
             FROM giftshopitem_log l
                      LEFT JOIN users u ON l.user_id = u.user_id
+                     LEFT JOIN roles r ON u.role_id = r.id
                      LEFT JOIN giftshopitem i ON l.item_id = i.item_id
             ORDER BY l.timestamp DESC
         `);
