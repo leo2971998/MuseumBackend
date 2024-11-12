@@ -72,6 +72,9 @@ const db = mysql.createPool(dbConfig);
 db.getConnection()
     .then(() => console.log('Connected to the MySQL database'))
     .catch((err) => console.error('Error connecting to the database:', err));
+db.query("SET time_zone = 'America/Chicago'").catch((err) => {
+    console.error('Error setting time zone:', err);
+});
 // --------------------------------------------------------------------------------------------------
 // ----- MULTER: IMAGE UPLOAD ---------------------------------------------------------------------
 const storage = multer.diskStorage({
@@ -1331,7 +1334,7 @@ async function generateGiftShopRevenueReport(reportPeriodType, startDate, endDat
     } else if (reportPeriodType === 'single_day') {
         query = `
             SELECT t.transaction_id,
-                   CONVERT_TZ(t.transaction_date, 'America/Chicago', '+00:00') AS transaction_date,
+                   t.transaction_date,
                    t.transaction_type,
                    t.payment_status,
                    u.username,
