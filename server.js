@@ -71,11 +71,13 @@ const dbConfig = {
 const db = mysql.createPool(dbConfig);
 
 db.getConnection()
-    .then(() => console.log('Connected to the MySQL database'))
+    .then(async (connection) => {
+        console.log('Connected to the MySQL database');
+        // Set the session time zone to CST
+        await connection.query("SET time_zone = '-06:00'");
+        connection.release();
+    })
     .catch((err) => console.error('Error connecting to the database:', err));
-db.query("SET time_zone = 'America/Chicago'").catch((err) => {
-    console.error('Error setting time zone:', err);
-});
 // --------------------------------------------------------------------------------------------------
 // ----- MULTER: IMAGE UPLOAD ---------------------------------------------------------------------
 const storage = multer.diskStorage({
