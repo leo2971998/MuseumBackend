@@ -79,47 +79,55 @@ db.getConnection()
     })
     .catch((err) => console.error('Error connecting to the database:', err));
 // --------------------------------------------------------------------------------------------------
-// ----- MULTER: IMAGE UPLOAD ---------------------------------------------------------------------
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'public/images');
-    }, filename: (req, file, cb) => {
-        const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        cb(null, safeFileName);
-    }
-});
 const upload = multer({storage});
 const roleMappings = {
     1: 'admin', 2: 'staff', 3: 'customer', 4: 'member',
 };
 // --------------------------------------------------------------------------------------------------
-// rtwork images
-app.use('/assets/artworks', express.static(path.join(__dirname, 'assets/artworks')));
-const artworkStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'assets/artworks')); // Save to frontend/src/assets/artworks
-    },
-    filename: (req, file, cb) => {
-        const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        cb(null, safeFileName);
-    }
-});
-const uploadArtworkImage = multer({ storage: artworkStorage });
-
+const uploadArtistImage = multer({ storage: multer.memoryStorage() });
+// ----- (MELANIE) --------------------------------------------------------------------------------
 app.get('/artwork', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+
+    // Use the isDeleted parameter to filter records accordingly
+    const query = `
+        SELECT artwork.ArtworkID, artwork.Title, artwork.Description, artwork.CreationYear, artwork.price, 
+               artwork.Medium, artwork.height, artwork.width, artwork.depth, artwork.acquisition_date, 
+               artwork.location, artwork.ArtworkCondition, artwork.artist_id, artwork.department_id,
+               artist.name_ AS artist_name, 
+               department.Name AS department_name
+        FROM artwork
+        LEFT JOIN artist ON artwork.artist_id = artist.ArtistID
+        LEFT JOIN department ON artwork.department_id = department.DepartmentID
+        WHERE artwork.is_deleted = ?
+    `;
+
     try {
-        const [rows] = await db.query(`
-            SELECT artwork.*, 
-                   artist.name_ AS artist_name, 
-                   department.Name AS department_name
-            FROM artwork
-            LEFT JOIN artist ON artwork.artist_id = artist.ArtistID
-            LEFT JOIN department ON artwork.department_id = department.DepartmentID
-        `);
-        res.json(rows);
+        // Execute the query with isDeleted as a boolean (0 for false, 1 for true)
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
     } catch (error) {
         console.error('Error fetching artwork table:', error);
         res.status(500).json({ message: 'Server error fetching artwork table.' });
+    }
+});
+
+
+app.get('/artwork/:id/image', async (req, res) => {
+    const artworkId = req.params.id;
+
+    try {
+        const [rows] = await db.query('SELECT image, image_type FROM artwork WHERE ArtworkID = ?', [artworkId]);
+        if (rows.length === 0 || !rows[0].image) {
+            return res.status(404).json({ message: 'Image not found' });
+        }
+
+        // Set the appropriate content type and send the image data
+        res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
+        res.send(rows[0].image);
+    } catch (error) {
+        console.error('Error fetching artwork image:', error);
+        res.status(500).json({ message: 'Server error fetching artwork image.' });
     }
 });
 
@@ -179,15 +187,31 @@ app.get('/artworkconditions', async (req, res) => {
     }
 });
 
+const uploadArtworkImage = multer({ storage: multer.memoryStorage() }); // Use memory storage for image uploads
 app.post('/artwork', uploadArtworkImage.single('image'), async (req, res) => {
     try {
-        const { Title, artist_id, department_id, Description, CreationYear, price, Medium, height, width, depth, acquisition_date, location, ArtworkCondition } = req.body;
-        const image = req.file ? req.file.filename : null;
+        const {
+            Title, artist_id, department_id, Description, CreationYear, price, 
+            Medium, height, width, depth, acquisition_date, location, ArtworkCondition
+        } = req.body;
+
+        let imageBlob = null;
+        let imageType = null;
+
+        // If an image was uploaded, process it
+        if (req.file) {
+            imageType = req.file.mimetype;
+
+            // Compress and resize image if it is too large
+            imageBlob = await sharp(req.file.buffer)
+                .resize({ width: 1000, withoutEnlargement: true }) // Resize to 800px width, maintaining aspect ratio
+                .toBuffer();
+        }
 
         const [result] = await db.query(
-            `INSERT INTO artwork (Title, artist_id, department_id, Description, CreationYear, price, Medium, height, width, depth, acquisition_date, location, ArtworkCondition, image) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [Title, artist_id, department_id, Description, CreationYear, price || null, Medium, height, width, depth || null, acquisition_date, location || null, ArtworkCondition, image]
+            `INSERT INTO artwork (Title, artist_id, department_id, Description, CreationYear, price, Medium, height, width, depth, acquisition_date, location, ArtworkCondition, image, image_type) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [Title, artist_id, department_id, Description, CreationYear, price || null, Medium, height, width, depth || null, acquisition_date, location || null, ArtworkCondition, imageBlob, imageType]
         );
 
         res.status(201).json({ message: 'Artwork added successfully', artworkId: result.insertId });
@@ -201,9 +225,20 @@ app.post('/artwork', uploadArtworkImage.single('image'), async (req, res) => {
 app.patch('/artwork/:id', uploadArtworkImage.single('image'), async (req, res) => {
     const artworkId = req.params.id;
     const { Title, artist_id, department_id, Description, CreationYear, price, Medium, height, width, depth, acquisition_date, location, ArtworkCondition } = req.body;
-    const image = req.file ? req.file.filename : null;
+    let imageBlob = null;
+    let imageType = null;
 
-    // Build the SQL query dynamically based on provided fields
+    // If a new image is uploaded, process it with sharp
+    if (req.file) {
+        imageType = req.file.mimetype;
+
+        // Compress and resize the image before saving
+        imageBlob = await sharp(req.file.buffer)
+            .resize({ width: 1000, withoutEnlargement: true }) // Resize to a max width of 800 pixels
+            .toBuffer();
+    }
+
+    // Dynamically construct SQL query and values based on provided fields
     const fields = [];
     const values = [];
 
@@ -227,7 +262,7 @@ app.patch('/artwork/:id', uploadArtworkImage.single('image'), async (req, res) =
         fields.push('CreationYear = ?');
         values.push(CreationYear);
     }
-    if (price !== undefined) {
+    if (price !== undefined) { // Allow `price` to be null
         fields.push('price = ?');
         values.push(price || null);
     }
@@ -243,7 +278,7 @@ app.patch('/artwork/:id', uploadArtworkImage.single('image'), async (req, res) =
         fields.push('width = ?');
         values.push(width);
     }
-    if (depth !== undefined) {
+    if (depth !== undefined) { // Allow `depth` to be null
         fields.push('depth = ?');
         values.push(depth || null);
     }
@@ -259,16 +294,19 @@ app.patch('/artwork/:id', uploadArtworkImage.single('image'), async (req, res) =
         fields.push('ArtworkCondition = ?');
         values.push(ArtworkCondition);
     }
-    if (image) { // Only update the image if a new one is provided
+    if (imageBlob && imageType) { // Add image fields only if a new image is provided
         fields.push('image = ?');
-        values.push(image);
+        values.push(imageBlob);
+        fields.push('image_type = ?');
+        values.push(imageType);
     }
 
+    // Check if any fields to update
     if (fields.length === 0) {
         return res.status(400).json({ message: 'No fields to update' });
     }
 
-    // Add the artworkId to the end of values array for the WHERE clause
+    // Add the artworkId for the WHERE clause
     values.push(artworkId);
 
     const query = `UPDATE artwork SET ${fields.join(', ')} WHERE ArtworkID = ?`;
@@ -282,15 +320,40 @@ app.patch('/artwork/:id', uploadArtworkImage.single('image'), async (req, res) =
     }
 });
 
+app.patch('/artwork/:id/restore', async (req, res) => {
+    const { id } = req.params;
+    try {
+      // Update the artwork's is_deleted status to false
+      await db.query('UPDATE artwork SET is_deleted = 0 WHERE ArtworkID = ?', [id]);
+      res.json({ message: 'Artwork restored successfully' });
+    } catch (error) {
+      console.error('Error restoring artwork:', error);
+      res.status(500).json({ message: 'Error restoring artwork' });
+    }
+  });
+
 // only delete artwork
+// app.delete('/artwork/:id', async (req, res) => {
+//     const artworkId = req.params.id;
+//     try {
+//         await db.query('DELETE FROM artwork WHERE ArtworkID = ?', [artworkId]);
+//         res.status(200).json({ message: 'Artwork deleted successfully' });
+//     } catch (error) {
+//         console.error('Error deleting artwork:', error);
+//         res.status(500).json({ message: 'Server error deleting artwork' });
+//     }
+// });
+// Soft delete artwork only
 app.delete('/artwork/:id', async (req, res) => {
     const artworkId = req.params.id;
     try {
-        await db.query('DELETE FROM artwork WHERE ArtworkID = ?', [artworkId]);
-        res.status(200).json({ message: 'Artwork deleted successfully' });
+        // Soft delete the artwork
+        await db.query('UPDATE artwork SET is_deleted = 1 WHERE ArtworkID = ?', [artworkId]);
+
+        res.status(200).json({ message: 'Artwork soft deleted successfully' });
     } catch (error) {
-        console.error('Error deleting artwork:', error);
-        res.status(500).json({ message: 'Server error deleting artwork' });
+        console.error('Error soft deleting artwork:', error);
+        res.status(500).json({ message: 'Server error soft deleting artwork' });
     }
 });
 
@@ -304,26 +367,42 @@ app.get('/department', async (req, res) => {
     }
 });
 
-// artist images
-app.use('/assets/artists', express.static(path.join(__dirname, 'assets/artists')));
-const artistStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'assets/artists')); // Save to frontend/src/assets/artists
-    },
-    filename: (req, file, cb) => {
-        const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        cb(null, safeFileName);
-    }
-});
-const uploadArtistImage = multer({ storage: artistStorage });
-
 app.get('/artist', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+
+    // Use the isDeleted parameter to filter records accordingly
+    const query = `
+        SELECT ArtistID, name_, gender, nationality, birth_year, death_year, description, is_deleted
+            FROM artist
+            WHERE artist.is_deleted = ?
+            ORDER BY name_ ASC
+    `;
+
     try {
-        const [rows] = await db.query('SELECT * FROM artist ORDER BY name_ ASC');
-        res.json(rows);
+        // Execute the query with isDeleted as a boolean (0 for false, 1 for true)
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
     } catch (error) {
         console.error('Error fetching artist table:', error);
-        res.status(500).json({message: 'Server error fetching artist table.'});
+        res.status(500).json({ message: 'Server error fetching artist table.' });
+    }
+});
+
+app.get('/artist/:id/image', async (req, res) => {
+    const artistId = req.params.id;
+
+    try {
+        const [rows] = await db.query('SELECT image, image_type FROM artist WHERE ArtistID = ?', [artistId]);
+        if (rows.length === 0 || !rows[0].image) {
+            return res.status(404).json({ message: 'Image not found' });
+        }
+
+        // Set the correct content type for the image and send the binary data
+        res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
+        res.send(rows[0].image);
+    } catch (error) {
+        console.error('Error fetching artist image:', error);
+        res.status(500).json({ message: 'Server error fetching artist image.' });
     }
 });
 
@@ -342,52 +421,111 @@ app.get('/artist/:id', async (req, res) => {
     }
 });
 
+// app.get('/artist-with-artwork', async (req, res) => {
+//     const isDeleted = req.query.isDeleted === 'true';
+
+//     // Use the isDeleted parameter to filter records accordingly
+//     const query = `
+//         SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
+//             artist.birth_year, artist.death_year, artist.is_deleted
+//         FROM artist
+//         LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
+//         WHERE artwork.ArtworkID IS NOT NULL AND artist.is_deleted = ?
+//         ORDER BY name_ ASC
+//     `;
+
+//     try {
+//         // Execute the query with isDeleted as a boolean (0 for false, 1 for true)
+//         const results = await db.query(query, [isDeleted ? 1 : 0]);
+//         res.json(results);
+//     } catch (error) {
+//         console.error('Error fetching artists with artwork:', error);
+//         res.status(500).json({ message: 'Server error fetching artists with artwork.' });
+//     }
+// });
+
+// app.get('/artist-null-artwork', async (req, res) => {
+//     const isDeleted = req.query.isDeleted === 'true';
+
+//     const query = `
+//         SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
+//             artist.birth_year, artist.death_year, artist.is_deleted
+//         FROM artist
+//         LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
+//         WHERE artwork.ArtworkID IS NULL AND artist.ArtistID IS NOT NULL AND artist.is_deleted = ?
+//         ORDER BY name_ ASC
+//     `;
+
+//     try {
+//         const results = await db.query(query, [isDeleted ? 1 : 0]);
+//         res.json(results);
+//     } catch (error) {
+//         console.error('Error fetching artists without artwork:', error);
+//         res.status(500).json({ message: 'Server error fetching artists without artwork.' });
+//     }
+// });
+
+
+// get nationalities
 app.get('/artist-with-artwork', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+
+    const query = `
+        SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
+            artist.birth_year, artist.death_year, artist.is_deleted
+        FROM artist
+        LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
+        WHERE artist.is_deleted = ?
+        AND EXISTS (
+            SELECT 1 
+            FROM artwork a 
+            WHERE a.artist_id = artist.ArtistID 
+            AND a.is_deleted = 0
+        )
+        ORDER BY name_ ASC
+    `;
+
     try {
-        console.log("Attempting to fetch artists with artwork...");
-        const [rows] = await db.query(`
-            SELECT DISTINCT artist.*
-            FROM artist
-            LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
-            WHERE artwork.ArtworkID IS NOT NULL
-            ORDER BY name_ ASC
-        `);
-        if (rows.length === 0) {
-            console.log("No artists found with artwork.");
-            return res.json([]);  // Return an empty array instead of 404
-        }
-        console.log("Artists with artwork fetched successfully:", rows);
-        res.json(rows);
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
     } catch (error) {
         console.error('Error fetching artists with artwork:', error);
         res.status(500).json({ message: 'Server error fetching artists with artwork.' });
     }
 });
 
+
 app.get('/artist-null-artwork', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+
+    const query = `
+        SELECT DISTINCT artist.ArtistID, artist.name_, artist.description, artist.gender, artist.nationality, 
+            artist.birth_year, artist.death_year, artist.is_deleted
+        FROM artist
+        LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
+        WHERE artist.is_deleted = ? 
+        AND (artwork.ArtworkID IS NULL OR (
+            artist.ArtistID IS NOT NULL
+            AND NOT EXISTS (
+                SELECT 1 
+                FROM artwork a 
+                WHERE a.artist_id = artist.ArtistID 
+                AND a.is_deleted = 0
+            )
+        ))
+        ORDER BY name_ ASC
+    `;
+
     try {
-        console.log("Attempting to fetch artists without artwork...");
-        const [rows] = await db.query(`
-            SELECT artist.*
-            FROM artist
-            LEFT JOIN artwork ON artist.ArtistID = artwork.artist_id
-            WHERE artwork.ArtworkID IS NULL
-            ORDER BY name_ ASC
-        `);
-        if (rows.length === 0) {
-            console.log("No artists found without artwork.");
-            return res.json([]);  // Return an empty array instead of 404
-        }
-        console.log("Artists without artwork fetched successfully:", rows);
-        res.json(rows);
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
     } catch (error) {
-        console.error('Error fetching artists without artwork:', error);
-        res.status(500).json({ message: 'Server error fetching artists without artwork.' });
+        console.error('Error fetching artists without artwork or with all artworks deleted:', error);
+        res.status(500).json({ message: 'Server error fetching artists without artwork or with all artworks deleted.' });
     }
 });
 
 
-// get nationalities
 app.get('/nationalities', async (req, res) => {
     try {
         const [rows] = await db.query(`
@@ -406,26 +544,27 @@ app.get('/nationalities', async (req, res) => {
     }
 });
 
-// Artist creation route with image upload
 app.post('/artist', uploadArtistImage.single('image'), async (req, res) => {
     try {
         const { name, gender, nationality, birthYear, description } = req.body;
         let deathYear = req.body.deathYear ? parseInt(req.body.deathYear) : null;
-        if (isNaN(deathYear)) {
-            deathYear = null;
-        }
-        const image = req.file ? req.file.filename : null;
+        deathYear = isNaN(deathYear) ? null : deathYear;
 
-        console.log("Received data:", { name, gender, nationality, birthYear, description, deathYear, image });
+        let imageBlob = null;
+        let imageType = null;
 
-        if (!name || !gender || !nationality || !birthYear || !description) {
-            return res.status(400).json({ message: 'All fields are required' });
+        // Process the uploaded image if provided
+        if (req.file) {
+            imageType = req.file.mimetype;
+            imageBlob = await sharp(req.file.buffer)
+                .resize({ width: 1000, withoutEnlargement: true }) // Resize to 1000px width max
+                .toBuffer();
         }
 
         const [result] = await db.query(
-            `INSERT INTO artist (name_, image, description, gender, nationality, birth_year, death_year) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [name, image, description, gender, nationality, birthYear, deathYear]
+            `INSERT INTO artist (name_, gender, nationality, birth_year, death_year, description, image, image_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name, gender, nationality, birthYear, deathYear, description, imageBlob, imageType]
         );
 
         res.status(201).json({ message: 'Artist added successfully', artistId: result.insertId });
@@ -436,53 +575,40 @@ app.post('/artist', uploadArtistImage.single('image'), async (req, res) => {
 });
 
 app.patch('/artist/:id', uploadArtistImage.single('image'), async (req, res) => {
+    
     const artistId = req.params.id;
     const { name, nationality, birthYear, deathYear, description, gender } = req.body;
-    const image = req.file ? req.file.filename : null; // Get the uploaded file, if available
+    let imageBlob = null;
+    let imageType = null;
 
-    // Handle deathYear - convert to null if it's empty or invalid
-    const parsedDeathYear = deathYear ? parseInt(deathYear) : null;
-    const finalDeathYear = isNaN(parsedDeathYear) ? null : parsedDeathYear;
+    // If a new image is uploaded, process it with sharp
+    if (req.file) {
+        imageType = req.file.mimetype;
+        imageBlob = await sharp(req.file.buffer)
+            .resize({ width: 1000, withoutEnlargement: true }) // Resize to 1000px max width
+            .toBuffer();
+    }
 
-    // Build the SQL query dynamically based on provided fields
     const fields = [];
     const values = [];
 
-    if (name) {
-        fields.push('name_ = ?');
-        values.push(name);
-    }
-    if (gender) {
-        fields.push('gender = ?');
-        values.push(gender);
-    }
-    if (nationality) {
-        fields.push('nationality = ?');
-        values.push(nationality);
-    }
-    if (birthYear) {
-        fields.push('birth_year = ?');
-        values.push(birthYear);
-    }
-    if (finalDeathYear !== undefined) { // Use finalDeathYear to handle null values
-        fields.push('death_year = ?');
-        values.push(finalDeathYear);
-    }
-    if (description) {
-        fields.push('description = ?');
-        values.push(description);
-    }
-    if (image) { // Only update the image if a new one is provided
+    if (name) fields.push('name_ = ?'), values.push(name);
+    if (gender) fields.push('gender = ?'), values.push(gender);
+    if (nationality) fields.push('nationality = ?'), values.push(nationality);
+    if (birthYear) fields.push('birth_year = ?'), values.push(birthYear);
+    if (deathYear !== undefined) fields.push('death_year = ?'), values.push(deathYear || null);
+    if (description) fields.push('description = ?'), values.push(description);
+    if (imageBlob && imageType) {
         fields.push('image = ?');
-        values.push(image);
+        fields.push('image_type = ?');
+        values.push(imageBlob, imageType);
     }
 
     if (fields.length === 0) {
         return res.status(400).json({ message: 'No fields to update' });
     }
 
-    // Add the artistId to the end of values array for the WHERE clause
-    values.push(artistId);
+    values.push(artistId); // Add artistId for the WHERE clause
 
     const query = `UPDATE artist SET ${fields.join(', ')} WHERE ArtistID = ?`;
 
@@ -495,18 +621,45 @@ app.patch('/artist/:id', uploadArtistImage.single('image'), async (req, res) => 
     }
 });
 
+app.patch('/artist/:id/restore', async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.query('UPDATE artist SET is_deleted = 0 WHERE ArtistID = ?', [id]);
+      res.status(200).json({ message: 'Artist restored successfully' });
+    } catch (error) {
+      console.error('Error restoring artist:', error);
+      res.status(500).json({ message: 'Failed to restore artist' });
+    }
+  });
+  
+
 // if i delete an artist, i want to delete all the artworks associated with that artist
+// app.delete('/artist/:id', async (req, res) => {
+//     const artistId = req.params.id;
+//     try {
+//         await db.query('DELETE FROM artist WHERE ArtistID = ?', [artistId]);
+//         res.status(200).json({ message: 'Artist and associated artworks deleted successfully' });
+//     } catch (error) {
+//         console.error('Error deleting artist:', error);
+//         res.status(500).json({ message: 'Server error deleting artist' });
+//     }
+// });
+// Soft delete artist and associated artworks
 app.delete('/artist/:id', async (req, res) => {
     const artistId = req.params.id;
     try {
-        await db.query('DELETE FROM artist WHERE ArtistID = ?', [artistId]);
-        res.status(200).json({ message: 'Artist and associated artworks deleted successfully' });
+        // Soft delete the artist
+        await db.query('UPDATE artist SET is_deleted = 1 WHERE ArtistID = ?', [artistId]);
+
+        // Soft delete all associated artworks
+        await db.query('UPDATE artwork SET is_deleted = 1 WHERE artist_id = ?', [artistId]);
+
+        res.status(200).json({ message: 'Artist and associated artworks soft deleted successfully' });
     } catch (error) {
-        console.error('Error deleting artist:', error);
-        res.status(500).json({ message: 'Server error deleting artist' });
+        console.error('Error soft deleting artist:', error);
+        res.status(500).json({ message: 'Server error soft deleting artist' });
     }
 });
-
 app.get('/ticket', async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM ticket');
