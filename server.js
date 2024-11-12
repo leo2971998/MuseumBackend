@@ -679,7 +679,298 @@ app.get('/user-type', async (req, res) => {
         res.status(500).json({ message: 'Server error fetching roles table.' });
     }
 });
-
+// ----(department)-----------------
+// Endpoint to get departments based on their is_deleted status
+app.get('/department', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+    const query = `
+        SELECT DepartmentID, Name, Description, Location, is_deleted
+        FROM department
+        WHERE is_deleted = ?
+        ORDER BY Name ASC
+    `;
+    try {
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
+    } catch (error) {
+        console.error('Error fetching department table:', error);
+        res.status(500).json({ message: 'Server error fetching department table.' });
+    }
+});
+app.get('/department/:id', async (req, res) => {
+    const departmentId = req.params.id;
+    try {
+        const department = await db.query('SELECT * FROM department WHERE DepartmentID = ?', [departmentId]);
+        if (department.length === 0) {
+            return res.status(404).json({ message: 'Department not found' });
+        }
+        res.json(department[0]);
+    } catch (error) {
+        console.error('Error fetching department:', error);
+        res.status(500).json({ message: 'Error fetching department' });
+    }
+});
+app.get('/department-with-artwork', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+    const query = `
+        SELECT DISTINCT department.DepartmentID, department.Name, department.Description, department.Location, department.is_deleted
+        FROM department
+        LEFT JOIN artwork ON department.DepartmentID = artwork.department_id
+        WHERE department.is_deleted = ?
+        AND EXISTS (
+            SELECT 1
+            FROM artwork a
+            WHERE a.department_id = department.DepartmentID
+            AND a.is_deleted = 0
+        )
+        ORDER BY Name ASC
+    `;
+    try {
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
+    } catch (error) {
+        console.error('Error fetching departments with artwork:', error);
+        res.status(500).json({ message: 'Server error fetching departments with artwork.' });
+    }
+});
+app.get('/department-null-artwork', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+    const query = `
+        SELECT DISTINCT department.DepartmentID, department.Name, department.Description, department.Location, department.is_deleted
+        FROM department
+        LEFT JOIN artwork ON department.DepartmentID = artwork.department_id
+        WHERE department.is_deleted = ?
+        AND (artwork.ArtworkID IS NULL OR (
+            department.DepartmentID IS NOT NULL
+            AND NOT EXISTS (
+                SELECT 1
+                FROM artwork a
+                WHERE a.department_id = department.DepartmentID
+                AND a.is_deleted = 0
+            )
+        ))
+        ORDER BY Name ASC
+    `;
+    try {
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
+    } catch (error) {
+        console.error('Error fetching departments without artwork:', error);
+        res.status(500).json({ message: 'Server error fetching departments without artwork.' });
+    }
+});
+app.post('/department', async (req, res) => {
+    const { name, location, description } = req.body;
+    if (!name || !description) {
+        return res.status(400).json({ message: 'Name and Description are required.' });
+    }
+    try {
+        const result = await db.query(
+            'INSERT INTO department (Name, Location, Description) VALUES (?, ?, ?)',
+            [name, location, description]
+        );
+        res.status(201).json({ message: 'Department added successfully', departmentId: result.insertId });
+    } catch (error) {
+        console.error('Error inserting department:', error);
+        res.status(500).json({ message: 'Server error inserting department.' });
+    }
+});
+app.patch('/department/:id', async (req, res) => {
+    const departmentId = req.params.id;
+    const { name, location, description } = req.body;
+    const fields = [];
+    const values = [];
+    // Add only department-specific fields
+    if (name) fields.push('Name = ?'), values.push(name);
+    if (location) fields.push('Location = ?'), values.push(location);
+    if (description) fields.push('Description = ?'), values.push(description);
+    if (fields.length === 0) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+    values.push(departmentId); // Add departmentId for the WHERE clause
+    const query = `UPDATE department SET ${fields.join(', ')} WHERE DepartmentID = ?`;
+    try {
+        await db.query(query, values);
+        res.status(200).json({ message: 'Department updated successfully.' });
+    } catch (error) {
+        console.error('Error updating department:', error);
+        res.status(500).json({ message: 'Server error updating department.' });
+    }
+});
+app.patch('/department/:id/restore', async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Restore the department
+        await db.query('UPDATE department SET is_deleted = 0 WHERE DepartmentID = ?', [id]);
+        res.status(200).json({ message: 'Department restored successfully' });
+    } catch (error) {
+        console.error('Error restoring department:', error);
+        res.status(500).json({ message: 'Failed to restore department' });
+    }
+});
+// Soft delete department and associated artworks
+app.delete('/department/:id', async (req, res) => {
+    const departmentId = req.params.id;
+    try {
+        // Soft delete the department
+        await db.query('UPDATE department SET is_deleted = 1 WHERE DepartmentID = ?', [departmentId]);
+        // Soft delete all associated artworks
+        await db.query('UPDATE artwork SET is_deleted = 1 WHERE department_id = ?', [departmentId]);
+        res.status(200).json({ message: 'Department and associated artworks soft deleted successfully' });
+    } catch (error) {
+        console.error('Error soft deleting department:', error);
+        res.status(500).json({ message: 'Server error soft deleting department' });
+    }
+});
+// ----(exhibition)-----------------
+app.get('/exhibition', async (req, res) => {
+    const isDeleted = req.query.isDeleted === 'true';
+    // Use the isDeleted parameter to filter records accordingly
+    const query = `
+        SELECT exhibition_id, name_, start_date, end_date, description_, is_deleted
+            FROM exhibition
+            WHERE exhibition.is_deleted = ?
+            ORDER BY name_ ASC
+    `;
+    try {
+        // Execute the query with isDeleted as a boolean (0 for false, 1 for true)
+        const results = await db.query(query, [isDeleted ? 1 : 0]);
+        res.json(results);
+    } catch (error) {
+        console.error('Error fetching exhibition table:', error);
+        res.status(500).json({ message: 'Server error fetching exhibition table.' });
+    }
+});
+app.get('/exhibition/:id/image', async (req, res) => {
+    const exhibitionId = req.params.id;
+    try {
+        const [rows] = await db.query('SELECT image, image_type FROM exhibition WHERE exhibition_id = ?', [exhibitionId]);
+        if (rows.length === 0 || !rows[0].image) {
+            return res.status(404).json({ message: 'Image not found' });
+        }
+        // Set the correct content type for the image and send the binary data
+        res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
+        res.send(rows[0].image);
+    } catch (error) {
+        console.error('Error fetching exhibition image:', error);
+        res.status(500).json({ message: 'Server error fetching exhibition image.' });
+    }
+});
+app.get('/exhibition/:id', async (req, res) => {
+    const exhibitionId = req.params.id;
+    try {
+        const [rows] = await db.query('SELECT * FROM exhibition WHERE exhibition_id = ?', [exhibitionId]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'exhibition not found' });
+        }
+        res.json(rows[0]); // Return the single artist object
+    } catch (error) {
+        console.error('Error fetching exhibition by ID:', error);
+        res.status(500).json({ message: 'Server error fetching exhibition.' });
+    }
+});
+const uploadExhibitionImage = multer({ storage: multer.memoryStorage() }); // Use memory storage for image uploads
+app.post('/exhibition', uploadExhibitionImage.single('image'), async (req, res) => {
+    try {
+        const { name, sdate, edate, description } = req.body;
+        let imageBlob = null;
+        let imageType = null;
+        // If an image was uploaded, process it
+        if (req.file) {
+            imageType = req.file.mimetype;
+            // Compress and resize image if it is too large
+            imageBlob = await sharp(req.file.buffer)
+                .resize({ width: 800, withoutEnlargement: true }) // Resize to 800px width, maintaining aspect ratio
+                .toBuffer();
+        }
+        const [result] = await db.query(
+            `INSERT INTO exhibition (name_, start_date, end_date, description_, image, image_type) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [name, sdate, edate, description, imageBlob, imageType]
+        );
+        res.status(201).json({ message: 'Exhibition added successfully', exId: result.insertId });
+        console.log("Exhibition added successfully");
+    } catch (error) {
+        console.error('Error inserting exhibition:', error);
+        res.status(500).json({ message: 'Failed to add exhibition' });
+    }
+});
+app.patch('/exhibition/:id', uploadExhibitionImage.single('image'), async (req, res) => {
+    const exhibitionId = req.params.id;
+    const { name, start_date, end_date, description } = req.body;
+    let imageBlob = null;
+    let imageType = null;
+    // If a new image is uploaded, process it with sharp
+    if (req.file) {
+        imageType = req.file.mimetype;
+        // Compress and resize the image before saving
+        imageBlob = await sharp(req.file.buffer)
+            .resize({ width: 800, withoutEnlargement: true }) // Resize to a max width of 800 pixels
+            .toBuffer();
+    }
+    // Dynamically construct SQL query and values based on provided fields
+    const fields = [];
+    const values = [];
+    if (name) {
+        fields.push('name_ = ?');
+        values.push(name);
+    }
+    if (start_date) {
+        fields.push('start_date = ?');
+        values.push(start_date);
+    }
+    if (end_date) {
+        fields.push('end_date = ?');
+        values.push(end_date);
+    }
+    if (description) {
+        fields.push('description_ = ?');
+        values.push(description);
+    }
+    if (imageBlob && imageType) { // Add image fields only if a new image is provided
+        fields.push('image = ?');
+        values.push(imageBlob);
+        fields.push('image_type = ?');
+        values.push(imageType);
+    }
+    // Check if any fields to update
+    if (fields.length === 0) {
+        return res.status(400).json({ message: 'No fields to update' });
+    }
+    // Add the exhibitionId for the WHERE clause
+    values.push(exhibitionId);
+    const query = `UPDATE exhibition SET ${fields.join(', ')} WHERE exhibition_id = ?`;
+    try {
+        await db.query(query, values);
+        res.status(200).json({ message: 'Exhibition updated successfully.' });
+    } catch (error) {
+        console.error('Error updating exhibition:', error);
+        res.status(500).json({ message: 'Server error updating exhibition.' });
+    }
+});
+app.patch('/exhibition/:id/restore', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Update the exhibition's is_deleted status to false
+        await db.query('UPDATE exhibition SET is_deleted = 0 WHERE exhibition_id = ?', [id]);
+        res.json({ message: 'Exhibition restored successfully' });
+    } catch (error) {
+        console.error('Error restoring exhibition:', error);
+        res.status(500).json({ message: 'Error restoring exhibition' });
+    }
+});
+// Soft delete artwork only
+app.delete('/exhibition/:id', async (req, res) => {
+    const exhibitionId = req.params.id;
+    try {
+        // Soft delete the exhibition by setting `is_deleted` to 1
+        await db.query('UPDATE exhibition SET is_deleted = 1 WHERE exhibition_id = ?', [exhibitionId]);
+        res.status(200).json({ message: 'Exhibition soft deleted successfully' });
+    } catch (error) {
+        console.error('Error soft deleting exhibition:', error);
+        res.status(500).json({ message: 'Server error soft deleting exhibition' });
+    }
+});
 // ----- (MELANIE DONE) ---------------------------------------------------------------------------
 
 // ----- (LEO) ------------------------------------------------------------------------------------
