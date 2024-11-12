@@ -1887,8 +1887,6 @@ app.get('/api/events/:id/report', async (req, res) => {
 
 // Membership registration endpoint
 app.post('/membership-registration', async (req, res) => {
-    console.log('Received membership registration request:', req.body);
-
     const {
         first_name,
         last_name,
@@ -1896,44 +1894,36 @@ app.post('/membership-registration', async (req, res) => {
         type_of_membership
     } = req.body;
 
+    const connection = await db.getConnection(); // Get a connection from the pool
     try {
-        // Start transaction
-        await db.query('START TRANSACTION');
+        await connection.beginTransaction(); // Start transaction on this connection
 
         // Check if user exists and get their role_id
-        const [existingUser] = await db.query(
+        const [existingUser] = await connection.query(
             'SELECT user_id, role_id FROM users WHERE username = ?',
             [username]
         );
 
-        console.log('Existing user data:', existingUser);
-
         if (existingUser.length === 0) {
-            await db.query('ROLLBACK');
-            console.log('User not found:', username);
+            await connection.rollback();
             return res.status(404).json({ error: 'User not found. Please register as a user first.' });
         }
 
         const user = existingUser[0];
-        console.log('User role_id:', user.role_id);
 
         // Check if user already has a membership
-        const [existingMembership] = await db.query(
+        const [existingMembership] = await connection.query(
             'SELECT * FROM membership WHERE user_id = ?',
             [user.user_id]
         );
 
-        console.log('Existing membership:', existingMembership);
-
         if (existingMembership.length > 0) {
-            await db.query('ROLLBACK');
-            console.log('User already has membership');
+            await connection.rollback();
             return res.status(400).json({ error: 'User already has a membership' });
         }
 
         if (user.role_id !== 3) {
-            await db.query('ROLLBACK');
-            console.log('Invalid role_id:', user.role_id);
+            await connection.rollback();
             return res.status(403).json({
                 error: user.role_id === 4
                     ? 'User already has an active membership'
@@ -1945,34 +1935,30 @@ app.post('/membership-registration', async (req, res) => {
         const expirationDate = new Date();
         expirationDate.setMonth(expirationDate.getMonth() + 1);
 
-        // Create membership record with correct column names (fname and lname)
-        const membershipResult = await db.query(
+        // Create membership record
+        await connection.query(
             `INSERT INTO membership 
             (user_id, type_of_membership, expire_date, expiration_warning, fname, lname)
             VALUES (?, ?, ?, ?, ?, ?)`,
             [user.user_id, type_of_membership.toLowerCase(), expirationDate, 0, first_name, last_name]
         );
 
-        console.log('Membership creation result:', membershipResult);
-
         // Update user's role_id to 4
-        const userUpdateResult = await db.query(
+        await connection.query(
             'UPDATE users SET role_id = 4 WHERE user_id = ?',
             [user.user_id]
         );
 
-        console.log('User role update result:', userUpdateResult);
-
         // Commit transaction
-        await db.query('COMMIT');
-        console.log('Transaction committed successfully');
+        await connection.commit();
         res.status(201).json({ message: 'Membership registration successful' });
-
     } catch (error) {
         // Rollback transaction on error
-        await db.query('ROLLBACK');
+        await connection.rollback();
         console.error('Error in membership registration:', error);
         res.status(500).json({ error: 'Internal server error during membership registration: ' + error.message });
+    } finally {
+        connection.release(); // Ensure the connection is released back to the pool
     }
 });
 
