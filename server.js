@@ -65,6 +65,7 @@ const dbConfig = {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    timezone: '-06:00', // Add this line
 };
 
 const db = mysql.createPool(dbConfig);
