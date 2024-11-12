@@ -1024,6 +1024,8 @@ app.post('/login', async (req, res) => {
     }
 
     try {
+        console.log('Attempting login for username:', username);
+
         // Query to fetch user details along with role name and membership status
         const [userRows] = await db.query(`
             SELECT
@@ -1032,12 +1034,20 @@ app.post('/login', async (req, res) => {
                 users.password,
                 users.role_id,
                 users.is_deleted,
+                users.first_name,
+                users.last_name,
                 roles.role_name,
                 (users.role_id = 4) AS is_member
             FROM users
                      JOIN roles ON users.role_id = roles.id
             WHERE users.username = ?
         `, [username]);
+
+        // Debug log the query result
+        console.log('Login query result:', {
+            rowCount: userRows.length,
+            userData: userRows[0]
+        });
 
         // Check if user exists
         if (userRows.length === 0) {
@@ -1068,7 +1078,7 @@ app.post('/login', async (req, res) => {
 
         // If the user is a member, fetch membership details
         if (user.is_member) {
-            const [warningRows] = await db.query(`
+            const [membershipRows] = await db.query(`
                 SELECT 
                     expiration_warning, 
                     expire_date 
@@ -1079,7 +1089,7 @@ app.post('/login', async (req, res) => {
                 LIMIT 1
             `, [user.user_id]);
 
-            membershipInfo = warningRows[0] || null;
+            membershipInfo = membershipRows[0] || null;
         }
 
         // Prepare the response payload
@@ -1088,12 +1098,17 @@ app.post('/login', async (req, res) => {
             userId: user.user_id,
             role: user.role_name,
             username: user.username,
+            first_name: user.first_name || '', // Provide default empty string if null
+            last_name: user.last_name || '',   // Provide default empty string if null
             // Only include membershipWarning and expireDate if the user is a member
             ...(user.is_member && membershipInfo && {
                 membershipWarning: membershipInfo.expiration_warning === 1,
                 expireDate: membershipInfo.expire_date
             })
         };
+
+        // Debug log the user data being sent
+        console.log('User data being sent to frontend:', responsePayload);
 
         // Send the successful response
         res.status(200).json(responsePayload);
@@ -1304,6 +1319,45 @@ app.put('/giftshopitems/:id/soft-delete', async (req, res) => {
         res.status(500).json({message: 'Server error soft deleting gift shop item.'});
     }
 });
+app.post('/users', authenticateAdmin, async (req, res) => {
+    const { firstName, lastName, dateOfBirth, username, password, email, roleId } = req.body;
+
+    // Validate inputs
+    const newErrors = {};
+    if (!firstName) newErrors.firstName = 'First name is required';
+    if (!lastName) newErrors.lastName = 'Last name is required';
+    if (!dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
+    if (!username) newErrors.username = 'Username is required';
+    if (!password) newErrors.password = 'Password is required'; // Now password is required
+    if (!email) newErrors.email = 'Email is required';
+    if (!roleId) newErrors.roleId = 'Role is required';
+
+    if (Object.keys(newErrors).length > 0) {
+        return res.status(400).json({ message: 'Validation error', errors: newErrors });
+    }
+
+    // Validate roleId
+    if (!Object.keys(roleMappings).includes(String(roleId))) {
+        return res.status(400).json({ message: 'Invalid role_id provided.' });
+    }
+
+    try {
+        // Hash the password before storing it
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const sql = `
+            INSERT INTO users (first_name, last_name, date_of_birth, username, password, email, role_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        const values = [firstName, lastName, dateOfBirth, username, hashedPassword, email, roleId];
+
+        await db.query(sql, values);
+        res.status(201).json({ message: 'User created successfully.' });
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ message: 'Server error creating user.' });
+    }
+});
 
 /// Get all users (Admin only)
 app.get('/users', async (req, res) => {
@@ -1451,7 +1505,19 @@ app.delete('/users/:id', async (req, res) => {
         res.status(500).json({message: 'Server error hard deleting user.'});
     }
 });
+// Restore a user (Admin only)
+app.put('/users/:id/restore', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
 
+    try {
+        const sql = 'UPDATE users SET is_deleted = 0 WHERE user_id = ?';
+        await db.query(sql, [id]);
+        res.status(200).json({ message: 'User restored successfully.' });
+    } catch (error) {
+        console.error('Error restoring user:', error);
+        res.status(500).json({ message: 'Server error restoring user.' });
+    }
+});
 // Restore a gift shop item (Admin only)
 app.put('/giftshopitems/:id/restore', async (req, res) => {
     const {id} = req.params;
@@ -1653,12 +1719,14 @@ app.put('/users/:id/restore', authenticateAdmin, async (req, res) => {
     }
 });
 // Updated /reports endpoint
-app.post('/reports', async (req, res) => {
+app.post('/reports', authenticateAdmin, async (req, res) => {
     const {
-        report_category, report_type, report_period_type, // 'date_range', 'month', 'year', or 'single_day'
-        start_date, end_date, selected_month, selected_year, // New field for 'year' report
-        selected_date, // New field for 'single_day' report
+        report_category, report_type, report_period_type,
+        start_date, end_date, selected_month, selected_year,
+        selected_date,
         item_category, payment_method, item_id,
+        report_option_tickets,
+        price_category, user_type_id
     } = req.body;
 
     console.log('Received /reports request with body:', req.body); // Debug log
@@ -1728,6 +1796,32 @@ app.post('/reports', async (req, res) => {
                     console.error('Invalid report type:', report_type);
                     return res.status(400).json({message: 'Invalid report type.'});
             }
+        } else if (report_category === 'TicketsReport') {
+            if (report_type === 'revenue') {
+                switch (report_option_tickets) {
+                    case 'totalTickets':
+                        console.log('Generating Tickets Report - Total Tickets');
+                        reportData = await generateTotalTicketsReport(
+                            report_period_type, start_date, end_date, selected_month, selected_year, selected_date, price_category, user_type_id
+                        );
+                        break;
+                    case 'totalRevenue':
+                        console.log('Generating Tickets Report - Total Revenue');
+                        reportData = await generateTotalRevenueReport(
+                            report_period_type, start_date, end_date, selected_month, selected_year, selected_date, price_category, user_type_id
+                        );
+                        break;
+                    case 'peakDateSold':
+                        console.log('Generating Tickets Report - Peak Date Sold');
+                        reportData = await generatePeakDateSoldReport(
+                            report_period_type, start_date, end_date, selected_month, selected_year, selected_date, price_category, user_type_id
+                        );
+                        break;
+                    default:
+                        console.error('Invalid report type for TicketsReport:', report_option_tickets);
+                        return res.status(400).json({message: 'Invalid report type for TicketsReport.'});
+                }
+            }
         } else {
             console.error('Invalid report category:', report_category);
             return res.status(400).json({message: 'Invalid report category.'});
@@ -1739,6 +1833,255 @@ app.post('/reports', async (req, res) => {
         res.status(500).json({message: 'Server error generating report.'});
     }
 });
+
+async function generateTotalTicketsReport(reportPeriodType, startDate, endDate, selectedMonth, selectedYear, selectedDate, priceCategory, userType) {
+    let query = '';
+    let params = [];
+    // Handle single or multiple price categories
+    const priceCategoryCondition = Array.isArray(priceCategory) && priceCategory.length > 1
+        ? `AND t.price_category IN (${priceCategory.map(() => '?').join(', ')})`
+        : `AND (t.price_category = ? OR ? IS NULL)`;
+    // Adjust the params based on priceCategory content
+    const priceCategoryParams = Array.isArray(priceCategory) ? priceCategory : [priceCategory];
+    if (reportPeriodType === 'date_range') {
+        query = `
+            SELECT
+                DATE (b.visit_date) AS date, COUNT (b.ticket_id) AS total_tickets
+            FROM
+                bought_tickets b
+                JOIN
+                ticket t
+            ON b.ticket_type_id = t.ticket_type_id
+                JOIN
+                transaction tt ON b.transaction_id = tt.transaction_id
+                LEFT JOIN
+                membership m ON b.membership_id = m.membership_id
+            WHERE
+                b.visit_date BETWEEN ?
+              AND ?
+              AND (t.price_category = ?
+               OR ? IS NULL) -- Optional filter for ticket type
+              AND (b.membership_id IS NOT NULL
+               OR ? IS NULL) -- Optional filter for user type
+            GROUP BY
+                DATE (b.visit_date)
+            ORDER BY
+                DATE (b.visit_date);
+        `;
+        params = [startDate, endDate, priceCategory, priceCategory, userType === 'member' ? 'member' : null];
+    } else if (reportPeriodType === 'month') {
+        query = `
+            SELECT
+                DATE (b.visit_date) AS date, COUNT (b.ticket_id) AS total_tickets
+            FROM
+                bought_tickets b
+                JOIN
+                ticket t
+            ON b.ticket_type_id = t.ticket_type_id
+                JOIN
+                transaction tt ON b.transaction_id = tt.transaction_id
+                LEFT JOIN
+                membership m ON b.membership_id = m.membership_id
+            WHERE
+                DATE_FORMAT(b.visit_date
+                , '%Y-%m') = ?
+              AND (t.price_category = ?
+               OR ? IS NULL)
+              AND (b.membership_id IS NOT NULL
+               OR ? IS NULL)
+            GROUP BY
+                DATE (b.visit_date)
+            ORDER BY
+                DATE (b.visit_date);
+        `;
+        params = [selectedMonth, priceCategory, priceCategory, userType === 'member' ? 'member' : null];
+    } else if (reportPeriodType === 'year') {
+        query = `
+            SELECT DATE_FORMAT(b.visit_date, '%Y-%m') AS date,
+                COUNT(b.ticket_id) AS total_tickets
+            FROM
+                bought_tickets b
+                JOIN
+                ticket t
+            ON b.ticket_type_id = t.ticket_type_id
+                JOIN
+                transaction tt ON b.transaction_id = tt.transaction_id
+                LEFT JOIN
+                membership m ON b.membership_id = m.membership_id
+            WHERE
+                YEAR (b.visit_date) = ?
+              AND (t.price_category = ?
+               OR ? IS NULL)
+              AND (b.membership_id IS NOT NULL
+               OR ? IS NULL)
+            GROUP BY
+                DATE_FORMAT(b.visit_date, '%Y-%m')
+            ORDER BY
+                DATE_FORMAT(b.visit_date, '%Y-%m');
+        `;
+        params = [selectedYear, priceCategory, priceCategory, userType === 'member' ? 'member' : null];
+    } else if (reportPeriodType === 'single_day') {
+        query = `
+            SELECT transaction_id,
+                   COUNT(b.ticket_id) AS total_tickets
+            FROM bought_tickets b
+                     JOIN
+                 ticket t ON b.ticket_type_id = t.ticket_type_id
+                     JOIN
+                 transaction tt ON b.transaction_id = tt.transaction_id
+                     LEFT JOIN
+                 membership m ON b.membership_id = m.membership_id
+            WHERE b.visit_date = ?
+              AND (t.price_category = ? OR ? IS NULL)
+              AND (b.membership_id IS NOT NULL OR ? IS NULL)
+            GROUP BY transaction_id
+            ORDER BY transaction_id;
+        `;
+        params = [selectedDate, priceCategory, priceCategory, userType === 'member' ? 'member' : null];
+    } else {
+        throw new Error('Invalid report period type for tickets report.');
+    }
+    console.log('Executing SQL Query:', query);
+    console.log('With Parameters:', params);
+    const [rows] = await db.query(query, params);
+    return rows;
+}
+
+// Function to generates a report on the total revenue from ticket sales
+async function generateTotalRevenueReport(reportPeriodType, startDate, endDate, selectedMonth, selectedYear, selectedDate, priceCategory, userType) {
+    let query = '';
+    let params = [];
+    if (reportPeriodType === 'date_range') {
+        // SQL query for a range of dates
+        query = `
+            SELECT
+                DATE (b.visit_date) AS date, SUM (t.total_amount) AS total_revenue
+            FROM
+                bought_tickets b
+                JOIN
+                transaction t
+            ON b.transaction_id = t.transaction_id
+            WHERE
+                b.visit_date BETWEEN ?
+              AND ?
+              AND (b.membership_id IS NOT NULL
+               OR ? = 'member')
+            GROUP BY
+                DATE (b.visit_date)
+            ORDER BY
+                DATE (b.visit_date);
+        `;
+        params = [startDate, endDate, userType];
+    } else if (reportPeriodType === 'month') {
+        // SQL query for a specific month
+        query = `
+            SELECT
+                DATE (b.visit_date) AS date, SUM (t.total_amount) AS total_revenue
+            FROM
+                bought_tickets b
+                JOIN
+                transaction t
+            ON b.transaction_id = t.transaction_id
+            WHERE
+                DATE_FORMAT(b.visit_date
+                , '%Y-%m') = ?
+              AND (b.membership_id IS NOT NULL
+               OR ? = 'member')
+            GROUP BY
+                DATE (b.visit_date)
+            ORDER BY
+                DATE (b.visit_date);
+        `;
+        params = [selectedMonth, userType];
+    } else if (reportPeriodType === 'year') {
+        // SQL query for a specific year
+        query = `
+            SELECT DATE_FORMAT(b.visit_date, '%Y-%m') AS date,
+                SUM(t.total_amount) AS total_revenue
+            FROM
+                bought_tickets b
+                JOIN
+                transaction t
+            ON b.transaction_id = t.transaction_id
+            WHERE
+                YEAR (b.visit_date) = ?
+              AND (b.membership_id IS NOT NULL
+               OR ? = 'member')
+            GROUP BY
+                DATE_FORMAT(b.visit_date, '%Y-%m')
+            ORDER BY
+                DATE_FORMAT(b.visit_date, '%Y-%m');
+        `;
+        params = [selectedYear, userType];
+    } else if (reportPeriodType === 'single_day') {
+        // SQL query for a specific day
+        query = `
+            SELECT transaction_id,
+                   SUM(t.total_amount) AS total_revenue
+            FROM bought_tickets b
+                     JOIN
+                 transaction t ON b.transaction_id = t.transaction_id
+            WHERE b.visit_date = ?
+              AND (b.membership_id IS NOT NULL OR ? = 'member')
+            GROUP BY transaction_id
+            ORDER BY transaction_id;
+        `;
+        params = [selectedDate, userType];
+    } else {
+        throw new Error('Invalid report period type for tickets report.');
+    }
+    console.log('Executing SQL Query for Total Revenue Report:', query);
+    console.log('With Parameters:', params);
+    const [rows] = await db.query(query, params);
+    return rows;
+}
+
+// Function finds the peak day with the most tickets sold
+async function generatePeakDateSoldReport(reportPeriodType, startDate, endDate, selectedMonth, selectedYear, selectedDate, priceCategory, userType) {
+    let query = '';
+    let params = [];
+    if (reportPeriodType === 'date_range' || reportPeriodType === 'month' || reportPeriodType === 'year') {
+        query = `
+            SELECT b.visit_date       AS peak_date,
+                   COUNT(b.ticket_id) AS tickets_sold
+            FROM bought_tickets b
+                     JOIN
+                 ticket t ON b.ticket_type_id = t.ticket_type_id
+                     JOIN
+                 transaction tt ON b.transaction_id = tt.transaction_id
+                     LEFT JOIN
+                 membership m ON b.membership_id = m.membership_id
+            WHERE b.visit_date BETWEEN ? AND ?
+              AND (t.price_category = ? OR ? IS NULL)
+              AND (b.membership_id IS NOT NULL OR ? = 'member')
+            GROUP BY b.visit_date
+            ORDER BY tickets_sold DESC LIMIT 1;
+        `;
+        params = [startDate, endDate, priceCategory, priceCategory, userType];
+    } else if (reportPeriodType === 'single_day') {
+        query = `
+            SELECT b.visit_date       AS peak_date,
+                   COUNT(b.ticket_id) AS tickets_sold
+            FROM bought_tickets b
+                     JOIN
+                 ticket t ON b.ticket_type_id = t.ticket_type_id
+                     JOIN
+                 transaction tt ON b.transaction_id = tt.transaction_id
+                     LEFT JOIN
+                 membership m ON b.membership_id = m.membership_id
+            WHERE b.visit_date = ?
+              AND (t.price_category = ? OR ? IS NULL)
+              AND (b.membership_id IS NOT NULL OR ? = 'member')
+            GROUP BY b.visit_date
+            ORDER BY tickets_sold DESC LIMIT 1;
+        `;
+        params = [selectedDate, priceCategory, priceCategory, userType];
+    } else {
+        throw new Error('Invalid report period type for tickets report.');
+    }
+    const [rows] = await db.query(query, params);
+    return rows;
+}
 
 // Updated Function to generate Gift Shop Revenue Report with filters
 async function generateGiftShopRevenueReport(reportPeriodType, startDate, endDate, selectedMonth, selectedYear, selectedDate, itemCategory, paymentMethod, itemId) {
@@ -1840,7 +2183,125 @@ async function generateGiftShopRevenueReport(reportPeriodType, startDate, endDat
         throw error;
     }
 }
+async function generateGiftShopTransactionDetailsReport(reportPeriodType, startDate, endDate, selectedMonth, selectedYear, selectedDate, itemCategory, paymentMethod, itemId) {
+    let query = '';
+    let params = [];
 
+    if (reportPeriodType === 'date_range') {
+        // SQL query for date range
+        query = `
+            SELECT t.transaction_id,
+                   t.transaction_date,
+                   t.transaction_type,
+                   t.payment_status,
+                   u.username,
+                   tgi.item_id,
+                   gsi.name_ AS item_name,
+                   tgi.quantity,
+                   tgi.price_at_purchase,
+                   (tgi.quantity * tgi.price_at_purchase) AS item_total
+            FROM \`transaction\` t
+            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+            JOIN users u ON t.user_id = u.user_id
+            WHERE t.transaction_date >= ? AND t.transaction_date <= ?
+        `;
+        params = [startDate, endDate];
+    } else if (reportPeriodType === 'month') {
+        // SQL query for month
+        query = `
+            SELECT t.transaction_id,
+                   t.transaction_date,
+                   t.transaction_type,
+                   t.payment_status,
+                   u.username,
+                   tgi.item_id,
+                   gsi.name_ AS item_name,
+                   tgi.quantity,
+                   tgi.price_at_purchase,
+                   (tgi.quantity * tgi.price_at_purchase) AS item_total
+            FROM \`transaction\` t
+            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+            JOIN users u ON t.user_id = u.user_id
+            WHERE DATE_FORMAT(t.transaction_date, '%Y-%m') = ?
+        `;
+        params = [selectedMonth];
+    } else if (reportPeriodType === 'year') {
+        // SQL query for year
+        query = `
+            SELECT t.transaction_id,
+                   t.transaction_date,
+                   t.transaction_type,
+                   t.payment_status,
+                   u.username,
+                   tgi.item_id,
+                   gsi.name_ AS item_name,
+                   tgi.quantity,
+                   tgi.price_at_purchase,
+                   (tgi.quantity * tgi.price_at_purchase) AS item_total
+            FROM \`transaction\` t
+            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+            JOIN users u ON t.user_id = u.user_id
+            WHERE YEAR(t.transaction_date) = ?
+        `;
+        params = [selectedYear];
+    } else if (reportPeriodType === 'single_day') {
+        // SQL query for single day
+        query = `
+            SELECT t.transaction_id,
+                   t.transaction_date,
+                   t.transaction_type,
+                   t.payment_status,
+                   u.username,
+                   tgi.item_id,
+                   gsi.name_ AS item_name,
+                   tgi.quantity,
+                   tgi.price_at_purchase,
+                   (tgi.quantity * tgi.price_at_purchase) AS item_total
+            FROM \`transaction\` t
+            JOIN transaction_giftshopitem tgi ON t.transaction_id = tgi.transaction_id
+            JOIN giftshopitem gsi ON tgi.item_id = gsi.item_id
+            JOIN users u ON t.user_id = u.user_id
+            WHERE DATE(t.transaction_date) = ?
+        `;
+        params = [selectedDate];
+    } else {
+        throw new Error('Invalid report period type for transaction details report.');
+    }
+
+    // Apply filters if provided
+    if (paymentMethod) {
+        query += ' AND t.transaction_type = ?';
+        params.push(paymentMethod);
+    }
+    if (itemCategory) {
+        query += ' AND gsi.category = ?';
+        params.push(itemCategory);
+    }
+    if (itemId) {
+        query += ' AND tgi.item_id = ?';
+        params.push(itemId);
+    }
+
+    // Order by transaction date
+    query += `
+        ORDER BY t.transaction_date
+    `;
+
+    console.log('Executing SQL Query for Transaction Details Report:', query);
+    console.log('With Parameters:', params);
+
+    try {
+        const [rows] = await db.query(query, params);
+        console.log('Transaction Details Report Query Result:', rows);
+        return rows;
+    } catch (error) {
+        console.error('Error in generateGiftShopTransactionDetailsReport:', error);
+        throw error;
+    }
+}
 // Endpoint to get all gift shop items
 app.get('/giftshopitemsreport', async (req, res) => {
     try {
@@ -2176,81 +2637,99 @@ app.get('/api/events/:id/report', async (req, res) => {
 
 // ----- (DENNIS) ---------------------------------------------------------------------------------
 
+// ----- (DENNIS) ---------------------------------------------------------------------------------
+// Keep middleware minimal - only check what's needed for access control
+async function authenticateMembershipAccess(req, res, next) {
+    const userId = req.headers['user-id'];
+    const role = req.headers['role'];
 
-// Membership registration endpoint
-app.post('/membership-registration', async (req, res) => {
-    const {
-        first_name,
-        last_name,
-        username,
-        type_of_membership
-    } = req.body;
+    if (!userId || !role) {
+        return res.status(401).json({ message: 'Please log in first.' });
+    }
 
-    const connection = await db.getConnection(); // Get a connection from the pool
     try {
-        await connection.beginTransaction(); // Start transaction on this connection
-
-        // Check if user exists and get their role_id
-        const [existingUser] = await connection.query(
-            'SELECT user_id, role_id FROM users WHERE username = ?',
-            [username]
+        // Only get what we need for authentication
+        const [user] = await db.query(
+            'SELECT role_id, is_deleted FROM users WHERE user_id = ?',
+            [userId]
         );
 
-        if (existingUser.length === 0) {
-            await connection.rollback();
-            return res.status(404).json({ error: 'User not found. Please register as a user first.' });
+        if (user.length === 0 || user[0].is_deleted === 1) {
+            return res.status(403).json({ message: 'User not found or deleted.' });
         }
 
-        const user = existingUser[0];
+        if (user[0].role_id === 4) {
+            return res.status(403).json({ message: 'Already a member.' });
+        }
 
-        // Check if user already has a membership
-        const [existingMembership] = await connection.query(
+        if (user[0].role_id !== 3) {
+            return res.status(403).json({ message: 'Only customers can become members.' });
+        }
+
+        next();
+    } catch (error) {
+        console.error('Error in authenticateMembershipAccess middleware:', error);
+        res.status(500).json({ message: 'Server error during authentication.' });
+    }
+}
+
+app.post('/membership-registration', authenticateMembershipAccess, async (req, res) => {
+    const userId = req.headers['user-id'];
+    const { first_name, last_name, type_of_membership } = req.body;
+
+    console.log('Received membership registration request:', {
+        userId,
+        first_name,
+        last_name,
+        type_of_membership
+    });
+
+    try {
+        await db.query('START TRANSACTION');
+
+        const [existingMembership] = await db.query(
             'SELECT * FROM membership WHERE user_id = ?',
-            [user.user_id]
+            [userId]
         );
 
         if (existingMembership.length > 0) {
-            await connection.rollback();
+            await db.query('ROLLBACK');
             return res.status(400).json({ error: 'User already has a membership' });
         }
 
-        if (user.role_id !== 3) {
-            await connection.rollback();
-            return res.status(403).json({
-                error: user.role_id === 4
-                    ? 'User already has an active membership'
-                    : 'User must have role_id 3 to register for membership'
-            });
-        }
-
-        // Calculate expiration date (1 month from now)
         const expirationDate = new Date();
         expirationDate.setMonth(expirationDate.getMonth() + 1);
 
-        // Create membership record
-        await connection.query(
-            `INSERT INTO membership 
+        // Updated column names: fname and lname (no underscore)
+        const insertQuery = `
+            INSERT INTO membership 
             (user_id, type_of_membership, expire_date, expiration_warning, fname, lname)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [user.user_id, type_of_membership.toLowerCase(), expirationDate, 0, first_name, last_name]
-        );
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
 
-        // Update user's role_id to 4
-        await connection.query(
-            'UPDATE users SET role_id = 4 WHERE user_id = ?',
-            [user.user_id]
-        );
+        const insertParams = [
+            userId,
+            type_of_membership.toLowerCase(),
+            expirationDate.toISOString().slice(0, 19).replace('T', ' '),
+            0,
+            first_name,
+            last_name
+        ];
 
-        // Commit transaction
-        await connection.commit();
+        console.log('Insert params:', insertParams);
+
+        await db.query(insertQuery, insertParams);
+
+        // Update user's role using parameterized query
+        await db.query('UPDATE users SET role_id = ? WHERE user_id = ?', [4, userId]);
+
+        await db.query('COMMIT');
         res.status(201).json({ message: 'Membership registration successful' });
+
     } catch (error) {
-        // Rollback transaction on error
-        await connection.rollback();
+        await db.query('ROLLBACK');
         console.error('Error in membership registration:', error);
         res.status(500).json({ error: 'Internal server error during membership registration: ' + error.message });
-    } finally {
-        connection.release(); // Ensure the connection is released back to the pool
     }
 });
 
