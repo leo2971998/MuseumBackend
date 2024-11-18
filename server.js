@@ -123,6 +123,7 @@ app.get('/artwork/:id/image', async (req, res) => {
         }
 
         // Set the appropriate content type and send the image data
+        res.set('Cache-Control', 'no-store');
         res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
         res.send(rows[0].image);
     } catch (error) {
@@ -408,6 +409,7 @@ app.get('/artist/:id/image', async (req, res) => {
         }
 
         // Set the correct content type for the image and send the binary data
+        res.set('Cache-Control', 'no-store');
         res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
         res.send(rows[0].image);
     } catch (error) {
@@ -847,6 +849,7 @@ app.get('/exhibition/:id/image', async (req, res) => {
             return res.status(404).json({ message: 'Image not found' });
         }
         // Set the correct content type for the image and send the binary data
+        res.set('Cache-Control', 'no-store');
         res.set('Content-Type', rows[0].image_type || 'application/octet-stream');
         res.send(rows[0].image);
     } catch (error) {
@@ -1197,6 +1200,7 @@ app.get('/giftshopitems/:id/image', async (req, res) => {
         }
 
         const imageType = rows[0].image_type || 'application/octet-stream';
+        res.set('Cache-Control', 'no-store');
         res.set('Content-Type', imageType);
         res.send(rows[0].image);
     } catch (error) {
