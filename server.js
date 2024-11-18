@@ -973,6 +973,7 @@ app.delete('/exhibition/:id', async (req, res) => {
 });
 // ----- (MELANIE DONE) ---------------------------------------------------------------------------
 // ----- (LEO) ------------------------------------------------------------------------------------
+// ----- (LEO) ------------------------------------------------------------------------------------
 
 // User registration
 app.post('/register', async (req, res) => {
@@ -1022,7 +1023,6 @@ app.post('/login', async (req, res) => {
     }
 
     try {
-
         // Query to fetch user details along with role name and membership status
         const [userRows] = await db.query(`
             SELECT
@@ -1041,7 +1041,6 @@ app.post('/login', async (req, res) => {
         `, [username]);
 
         // Debug log the query result
-
         // Check if user exists
         if (userRows.length === 0) {
             return res.status(400).json({ message: 'Invalid username or password.' });
@@ -1072,14 +1071,14 @@ app.post('/login', async (req, res) => {
         // If the user is a member, fetch membership details
         if (user.is_member) {
             const [membershipRows] = await db.query(`
-                SELECT 
-                    expiration_warning, 
-                    expire_date 
-                FROM membership 
-                WHERE user_id = ? 
+                SELECT
+                    expiration_warning,
+                    expire_date
+                FROM membership
+                WHERE user_id = ?
                   AND expire_date >= CURRENT_TIMESTAMP
-                ORDER BY expire_date ASC 
-                LIMIT 1
+                ORDER BY expire_date ASC
+                    LIMIT 1
             `, [user.user_id]);
 
             membershipInfo = membershipRows[0] || null;
@@ -1099,6 +1098,9 @@ app.post('/login', async (req, res) => {
                 expireDate: membershipInfo.expire_date
             })
         };
+
+        // Debug log the user data being sent
+
         // Send the successful response
         res.status(200).json(responsePayload);
 
@@ -1108,6 +1110,7 @@ app.post('/login', async (req, res) => {
     }
 });
 // ----- AUTHENTICATION MIDDLEWARE -----
+
 // Authenticate Admin and Staff Middleware
 function authenticateAdmin(req, res, next) {
     const {role} = req.headers;
@@ -1147,7 +1150,7 @@ const uploadMulter = multer({storage: multer.memoryStorage()});
 // ----- GIFT SHOP ITEMS ENDPOINTS -----
 
 // Create item API
-app.post('/giftshopitems', uploadMulter.single('image'), authenticateUser, async (req, res) => {
+app.post('/giftshopitems', uploadMulter.single('image'), async (req, res) => {
     const {name_, category, price, quantity} = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
     const imageType = req.file ? req.file.mimetype : null;
@@ -1211,7 +1214,7 @@ app.get('/giftshopitems/:id/image', async (req, res) => {
 
 // Update item API
 // Update item API
-app.put('/giftshopitems/:id', uploadMulter.single('image'), authenticateUser, async (req, res) => {
+app.put('/giftshopitems/:id', uploadMulter.single('image'), async (req, res) => {
     const {id} = req.params;
     const {name_, category, price, quantity} = req.body;
     const imageBlob = req.file ? req.file.buffer : null;
@@ -1260,7 +1263,7 @@ app.put('/giftshopitems/:id', uploadMulter.single('image'), authenticateUser, as
 
 
 // Hard delete a gift shop item (Admin only)
-app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res) => {
+app.delete('/giftshopitems/:id/hard-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -1280,7 +1283,7 @@ app.delete('/giftshopitems/:id/hard-delete', authenticateAdmin, async (req, res)
 
 
 // Soft delete a gift shop item (Admin only)
-app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/soft-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -1294,7 +1297,7 @@ app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) =>
 });
 
 // Soft delete a gift shop item (Admin only)
-app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/soft-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -1304,33 +1307,6 @@ app.put('/giftshopitems/:id/soft-delete', authenticateAdmin, async (req, res) =>
     } catch (error) {
         console.error('Error soft deleting gift shop item:', error);
         res.status(500).json({message: 'Server error soft deleting gift shop item.'});
-    }
-});
-
-/// Get all users (Admin only)
-app.get('/users', authenticateAdmin, async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT user_id,
-                   first_name,
-                   last_name,
-                   username,
-                   email,
-                   role_id,
-                   is_deleted,
-                   DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth
-            FROM users
-        `);
-
-        // Map role_id to role_name
-        const users = rows.map(user => ({
-            ...user, role_name: roleMappings[user.role_id],
-        }));
-
-        res.status(200).json(users);
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        res.status(500).json({message: 'Server error fetching users.'});
     }
 });
 app.post('/users', authenticateAdmin, async (req, res) => {
@@ -1373,29 +1349,53 @@ app.post('/users', authenticateAdmin, async (req, res) => {
     }
 });
 
-app.get('/giftshopitems/logs', authenticateAdmin, async (req, res) => {
+/// Get all users (Admin only)
+app.get('/users', async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT l.*, u.username, i.name_ AS item_name
+            SELECT user_id,
+                   first_name,
+                   last_name,
+                   username,
+                   email,
+                   role_id,
+                   is_deleted,
+                   DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth
+            FROM users
+        `);
+
+        // Map role_id to role_name
+        const users = rows.map(user => ({
+            ...user, role_name: roleMappings[user.role_id],
+        }));
+
+        res.status(200).json(users);
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({message: 'Server error fetching users.'});
+    }
+});
+app.get('/giftshopitems/logs', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT l.*, u.username, r.role_name AS role, i.name_ AS item_name
             FROM giftshopitem_log l
                      LEFT JOIN users u ON l.user_id = u.user_id
+                     LEFT JOIN roles r ON u.role_id = r.id
                      LEFT JOIN giftshopitem i ON l.item_id = i.item_id
             ORDER BY l.timestamp DESC
         `);
         res.status(200).json(rows);
     } catch (error) {
         console.error('Error fetching gift shop item logs:', error);
-        res.status(500).json({message: 'Server error fetching logs.'});
+        res.status(500).json({ message: 'Server error fetching logs.' });
     }
 });
 // Get user profile
-app.get('/users/:id', authenticateUser, async (req, res) => {
+app.get('/users/:id', async (req, res) => {
     const {id} = req.params;
 
     // Ensure the user can only access their own profile or admin can access any
-    if (req.userId !== id && req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied.'});
-    }
 
     try {
         const [rows] = await db.query(`
@@ -1416,32 +1416,61 @@ app.get('/users/:id', authenticateUser, async (req, res) => {
     }
 });
 // Update user (Admin only)
-app.put('/users/:id', async (req, res) => {
-    const {id} = req.params;
-    const {firstName, lastName, dateOfBirth, email, roleId} = req.body;
+app.put('/users/:id', authenticateUser, async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, dateOfBirth, email, roleId } = req.body;
+    const userRole = req.userRole; // Obtained from authenticateUser middleware
+
+    // Validate input
+    if (!firstName || !lastName || !dateOfBirth || !email) {
+        return res.status(400).json({ message: 'First name, last name, date of birth, and email are required.' });
+    }
+
+    // Initialize SQL and values
+    let sql = `
+        UPDATE users
+        SET first_name    = ?,
+            last_name     = ?,
+            date_of_birth = ?,
+            email         = ?
+    `;
+    let values = [firstName, lastName, dateOfBirth, email];
+
+    // If roleId is provided, verify that the requester is an admin
+    if (roleId !== undefined) {
+        if (userRole !== 'admin') {
+            return res.status(403).json({ message: 'Only admins can update user roles.' });
+        }
+
+        // Validate roleId
+        if (!Object.keys(roleMappings).includes(String(roleId))) {
+            return res.status(400).json({ message: 'Invalid role_id provided.' });
+        }
+
+        sql += `, role_id = ?`;
+        values.push(roleId);
+    }
+
+    sql += ` WHERE user_id = ?`;
+    values.push(id);
 
     try {
-        const sql = `
-            UPDATE users
-            SET first_name    = ?,
-                last_name     = ?,
-                date_of_birth = ?,
-                email         = ?,
-                role_id       = ?
-            WHERE user_id = ?
-        `;
-        const values = [firstName, lastName, dateOfBirth, email, roleId, id];
+        // Execute the update query
+        const [result] = await db.query(sql, values);
 
-        await db.query(sql, values);
-        res.status(200).json({message: 'User updated successfully.'});
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        res.status(200).json({ message: 'User updated successfully.' });
     } catch (error) {
         console.error('Error updating user:', error);
-        res.status(500).json({message: 'Server error updating user.'});
+        res.status(500).json({ message: 'Server error updating user.' });
     }
 });
 
 // Soft delete user (Admin only)
-app.put('/users/:id/soft-delete', authenticateAdmin, async (req, res) => {
+app.put('/users/:id/soft-delete', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -1455,7 +1484,7 @@ app.put('/users/:id/soft-delete', authenticateAdmin, async (req, res) => {
 });
 
 // Hard delete user (Admin only)
-app.delete('/users/:id', authenticateAdmin, async (req, res) => {
+app.delete('/users/:id', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -1481,7 +1510,7 @@ app.put('/users/:id/restore', authenticateAdmin, async (req, res) => {
     }
 });
 // Restore a gift shop item (Admin only)
-app.put('/giftshopitems/:id/restore', authenticateAdmin, async (req, res) => {
+app.put('/giftshopitems/:id/restore', async (req, res) => {
     const {id} = req.params;
 
     try {
@@ -1495,14 +1524,11 @@ app.put('/giftshopitems/:id/restore', authenticateAdmin, async (req, res) => {
 });
 
 // ----- CHECKOUT ENDPOINT ------------------------------------------------------------------------
-app.put('/users/:id/change-password', authenticateUser, async (req, res) => {
+app.put('/users/:id/change-password', async (req, res) => {
     const {id} = req.params;
     const {currentPassword, newPassword} = req.body;
 
     // Ensure the user can only change their own password or admin can change any
-    if (req.userId !== id && req.userRole !== 'admin') {
-        return res.status(403).json({message: 'Access denied. You can only change your own password.'});
-    }
 
     try {
         const [rows] = await db.query('SELECT password FROM users WHERE user_id = ?', [id]);
@@ -1532,7 +1558,7 @@ app.put('/users/:id/change-password', authenticateUser, async (req, res) => {
     }
 });
 // Admin reset password endpoint
-app.put('/users/:id/reset-password', authenticateAdmin, async (req, res) => {
+app.put('/users/:id/reset-password', async (req, res) => {
     const {id} = req.params;
     const {newPassword} = req.body;
 
@@ -1563,7 +1589,7 @@ app.put('/users/:id/reset-password', authenticateAdmin, async (req, res) => {
 });
 // ----- CHECKOUT ENDPOINT (Assuming other checkout logic is implemented)
 app.post('/checkout', authenticateUser, async (req, res) => {
-    const {payment_method, items} = req.body;
+    const {userId, role, payment_method, items} = req.body;
     const user_id = req.userId; // Retrieved from the authenticateUser middleware
 
     // Input Validation
@@ -1655,8 +1681,33 @@ app.post('/checkout', authenticateUser, async (req, res) => {
         connection.release();
     }
 });
+// Restore a soft-deleted user (Admin only)
+app.put('/users/:id/restore', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
 
-// Updated /reports endpoint
+    try {
+        // Check if the user exists and is currently soft-deleted
+        const [rows] = await db.query('SELECT is_deleted FROM users WHERE user_id = ?', [id]);
+
+        if (rows.length === 0) {
+            console.error(`Restore User Error: User with ID ${id} not found.`);
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        if (rows[0].is_deleted === 0) {
+            console.error(`Restore User Error: User with ID ${id} is not deleted.`);
+            return res.status(400).json({ message: 'User is not deleted.' });
+        }
+
+        // Restore the user by setting is_deleted to 0
+        await db.query('UPDATE users SET is_deleted = 0 WHERE user_id = ?', [id]);
+
+        res.status(200).json({ message: 'User restored successfully.' });
+    } catch (error) {
+        console.error(`Error restoring user with ID ${id}:`, error);
+        res.status(500).json({ message: 'Server error restoring user.' });
+    }
+});
 app.post('/reports', authenticateAdmin, async (req, res) => {
     const {
         report_type, report_period_type,
