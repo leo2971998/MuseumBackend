@@ -1412,7 +1412,7 @@ app.get('/users/:id', authenticateUser, async (req, res) => {
     }
 });
 // Update user (Admin only)
-app.put('/users/:id', authenticateAdmin, async (req, res) => {
+app.put('/users/:id', async (req, res) => {
     const {id} = req.params;
     const {firstName, lastName, dateOfBirth, email, roleId} = req.body;
 
