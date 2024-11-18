@@ -215,7 +215,6 @@ app.post('/artwork', uploadArtworkImage.single('image'), async (req, res) => {
         );
 
         res.status(201).json({ message: 'Artwork added successfully', artworkId: result.insertId });
-        console.log("Artwork added successfully");
     } catch (error) {
         console.error('Error inserting artwork:', error);
         res.status(500).json({ message: 'Failed to add artwork' });
@@ -888,7 +887,6 @@ app.post('/exhibition', uploadExhibitionImage.single('image'), async (req, res) 
             [name, sdate, edate, description, imageBlob, imageType]
         );
         res.status(201).json({ message: 'Exhibition added successfully', exId: result.insertId });
-        console.log("Exhibition added successfully");
     } catch (error) {
         console.error('Error inserting exhibition:', error);
         res.status(500).json({ message: 'Failed to add exhibition' });
@@ -1021,7 +1019,6 @@ app.post('/login', async (req, res) => {
     }
 
     try {
-        console.log('Attempting login for username:', username);
 
         // Query to fetch user details along with role name and membership status
         const [userRows] = await db.query(`
@@ -1041,10 +1038,6 @@ app.post('/login', async (req, res) => {
         `, [username]);
 
         // Debug log the query result
-        console.log('Login query result:', {
-            rowCount: userRows.length,
-            userData: userRows[0]
-        });
 
         // Check if user exists
         if (userRows.length === 0) {
@@ -1103,10 +1096,6 @@ app.post('/login', async (req, res) => {
                 expireDate: membershipInfo.expire_date
             })
         };
-
-        // Debug log the user data being sent
-        console.log('User data being sent to frontend:', responsePayload);
-
         // Send the successful response
         res.status(200).json(responsePayload);
 
@@ -1672,7 +1661,6 @@ app.post('/reports', authenticateAdmin, async (req, res) => {
         item_category, payment_method, item_id,
     } = req.body;
 
-    console.log('Received /reports request with body:', req.body); // Debug log
 
     // Input Validation
     if (!report_type || !report_period_type) {
@@ -1724,18 +1712,13 @@ app.post('/reports', authenticateAdmin, async (req, res) => {
         let reportData;
         switch (report_type) {
             case 'revenue':
-                console.log('Generating Gift Shop Revenue Report');
                 reportData = await generateGiftShopRevenueReport(report_period_type, start_date, end_date, selected_month, selected_year, selected_date, item_category, payment_method, item_id);
-                console.log('Report Data:', reportData); // Debug log
                 break;
             case 'transaction_details':
-                console.log('Generating Gift Shop Transaction Details Report');
                 reportData = await generateGiftShopTransactionDetailsReport(report_period_type, start_date, end_date, selected_month, selected_year, selected_date, item_category, payment_method, item_id);
-                console.log('Report Data:', reportData);
                 break;
             // Add other report types if needed
             default:
-                console.error('Invalid report type:', report_type);
                 return res.status(400).json({message: 'Invalid report type.'});
         }
 
@@ -1856,16 +1839,12 @@ async function generateGiftShopRevenueReport(
     }
     // No grouping needed for 'single_day'
 
-    // Debug Logs (optional - remove in production)
-    console.log('Executing SQL Query for Revenue Report:', query);
-    console.log('With Parameters:', params);
 
     try {
         // Execute the query with parameters
         const [rows] = await db.query(query, params);
 
         // Debug Log (optional - remove in production)
-        console.log('Revenue Report Query Result:', rows);
 
         return rows;
     } catch (error) {
@@ -1981,12 +1960,8 @@ async function generateGiftShopTransactionDetailsReport(reportPeriodType, startD
         ORDER BY t.transaction_date
     `;
 
-    console.log('Executing SQL Query for Transaction Details Report:', query);
-    console.log('With Parameters:', params);
-
     try {
         const [rows] = await db.query(query, params);
-        console.log('Transaction Details Report Query Result:', rows);
         return rows;
     } catch (error) {
         console.error('Error in generateGiftShopTransactionDetailsReport:', error);
@@ -2436,8 +2411,6 @@ app.post('/membership-reports', async (req, res) => {
         payment_method,
     } = req.body;
 
-    console.log('Received /membership-reports request with body:', req.body);
-
     // Input Validation
     if (!report_type || !report_period_type) {
         return res.status(400).json({
@@ -2581,12 +2554,9 @@ async function generateMembershipRevenueReport(
         `;
     }
 
-    console.log('Executing SQL Query for Membership Revenue Report:', query);
-    console.log('With Parameters:', params);
 
     try {
         const [rows] = await db.query(query, params);
-        console.log('Membership Revenue Report Query Result:', rows);
         return rows;
     } catch (error) {
         console.error('Error in generateMembershipRevenueReport:', error);
@@ -2688,12 +2658,8 @@ async function generateMembershipTransactionDetailsReport(
     // Order the results
     query += ' ORDER BY t.transaction_date';
 
-    console.log('Executing SQL Query for Membership Transaction Details Report:', query);
-    console.log('With Parameters:', params);
-
     try {
         const [rows] = await db.query(query, params);
-        console.log('Membership Transaction Details Report Query Result:', rows);
         return rows;
     } catch (error) {
         console.error('Error in generateMembershipTransactionDetailsReport:', error);
@@ -2798,12 +2764,6 @@ async function generateMembershipCountsReport(
         throw new Error('Invalid report period type for membership counts report.');
     }
 
-    console.log('Executing SQL Query for New Memberships:', queryNew);
-    console.log('With Parameters:', paramsNew);
-
-    console.log('Executing SQL Query for Canceled Memberships:', queryCanceled);
-    console.log('With Parameters:', paramsCanceled);
-
     try {
         const [newMembershipsRows] = await db.query(queryNew, paramsNew);
         const [canceledMembershipsRows] = await db.query(queryCanceled, paramsCanceled);
@@ -2842,7 +2802,6 @@ async function generateMembershipCountsReport(
 
         mergedResults.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        console.log('Membership Counts Report Merged Results:', mergedResults);
 
         return mergedResults;
     } catch (error) {
@@ -3046,14 +3005,6 @@ app.post('/membership-registration', authenticateMembershipAccess, async (req, r
     const userId = req.headers['user-id'];
     const { first_name, last_name, type_of_membership, membership_price } = req.body;
 
-    console.log('Received membership registration request:', {
-        userId,
-        first_name,
-        last_name,
-        type_of_membership,
-        membership_price,
-    });
-
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
@@ -3116,7 +3067,6 @@ app.post('/membership-registration', authenticateMembershipAccess, async (req, r
                 'active',
             ];
 
-            console.log('Insert membership params:', insertMembershipParams);
 
             const [membershipResult] = await connection.query(insertMembershipQuery, insertMembershipParams);
 
@@ -3211,7 +3161,6 @@ app.post('/reports-tickets' , /*authenticateAdmin,*/ async (req, res) => {
         payment_method
     } = req.body;
 
-    console.log('Received /reports/tickets request with body:', req.body); // Debug log
 
     //Input Validation
     if (!report_type || !reportPeriodType) {
@@ -3263,7 +3212,6 @@ app.post('/reports-tickets' , /*authenticateAdmin,*/ async (req, res) => {
         let reportData;
         switch (report_type) {
             case 'revenue':
-                console.log('Generating Total Revenue Report');
                 reportData = await generateTotalRevenueReport(
                     reportPeriodType,
                     start_date,
@@ -3275,10 +3223,8 @@ app.post('/reports-tickets' , /*authenticateAdmin,*/ async (req, res) => {
                     user_type_id,
                     payment_method
                 )
-                console.log('Report Data:', reportData); // Debug log
                 break;
             case 'tickets':
-                console.log('Generating Total Ticket Report');
                 reportData = await generateTotalTicketsReport(
                     reportPeriodType,
                     start_date,
@@ -3290,10 +3236,8 @@ app.post('/reports-tickets' , /*authenticateAdmin,*/ async (req, res) => {
                     user_type_id,
                     payment_method
                 )
-                console.log('Report Data:', reportData); // Debug log
                 break;
             case 'transaction_details':
-                console.log('Generating Ticket Transaction Details Report');
                 reportData = await generateTicketTransactionDetailsReport(
                     reportPeriodType,
                     start_date,
@@ -3305,7 +3249,6 @@ app.post('/reports-tickets' , /*authenticateAdmin,*/ async (req, res) => {
                     user_type_id,
                     payment_method
                 );
-                console.log('Report Data:', reportData);
                 break;
             // Add other report types if needed
             default:
@@ -3410,12 +3353,9 @@ async function generateTotalRevenueReport(reportPeriodType, startDate, endDate, 
         `;
     }
 
-    console.log('Executing SQL Query for Revenue Report:', query); // Debug log
-    console.log('With Parameters:', params); // Debug log
 
     try {
         const [rows] = await db.query(query, params);
-        console.log('Revenue Report Query Result:', rows); // Debug log
         return rows;
     } catch (error) {
         console.error('Error in generateTotalRevenueReport:', error); // Debug log with error details
@@ -3511,12 +3451,8 @@ async function generateTotalTicketsReport(reportPeriodType, startDate, endDate, 
         `;
     }
 
-    console.log('Executing SQL Query for Ticket Count Report:', query); // Debug log
-    console.log('With Parameters:', params); // Debug log
-
     try {
         const [rows] = await db.query(query, params);
-        console.log('Ticket Count Report Query Result:', rows); // Debug log
         return rows;
     } catch (error) {
         console.error('Error in generateTotalTicketsReport:', error); // Debug log with error details
@@ -3631,12 +3567,8 @@ async function generateTicketTransactionDetailsReport(reportPeriodType, startDat
         ORDER BY t.transaction_date
     `;
 
-    console.log('Executing SQL Query for Ticket Transaction Details Report:', query);
-    console.log('With Parameters:', params);
-
     try {
         const [rows] = await db.query(query, params);
-        console.log('Ticket Transaction Details Report Query Result:', rows);
         return rows;
     } catch (error) {
         console.error('Error in generateTicketTransactionDetailsReport:', error);
