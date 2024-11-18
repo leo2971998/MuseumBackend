@@ -2237,7 +2237,7 @@ app.put('/announcements/:id/restore', authenticateUser, async (req, res) => {
     }
 });
 // Endpoint to handle ticket purchases
-app.post('/ticket-purchase', async (req, res) => {
+app.post('/ticket-purchase', authenticateUser, async (req, res) => {
     const { payment_method, tickets } = req.body;
     const user_id = req.userId; // Retrieved from the authenticateUser middleware
 
